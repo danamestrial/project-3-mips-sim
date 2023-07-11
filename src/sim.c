@@ -90,12 +90,22 @@
 #define rs(bits) (get_bits_between(bits, 21, 5))
 #define rt(bits) (get_bits_between(bits, 16, 5))
 #define rd(bits) (get_bits_between(bits, 11, 5))
-#define imm(bits) (get_bits_between(bits, 0, 16))
 #define sa(bits) (get_bits_between(bits, 6, 5))
+#define imm(bits) (get_bits_between(bits, 0, 16))
+#define targ(bits) (get_bits_between(bits, 0, 26))
 
 uint32_t get_bits_between(uint32_t bits, int start, int size)
 {
     return (bits >> start) & MASK(size);
+}
+
+uint32_t convert_to_32(int16_t immediate) {
+    if ((immediate << 15) == 1) {
+        return (uint32_t) (immediate | 0xFFFF0000);
+    }
+    else {
+        return (uint32_t) immediate;
+    }
 }
 
 void process_special(uint32_t bits)
@@ -220,7 +230,7 @@ void process_instruction()
 
         case ADDI:
         case ADDIU:
-            NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] + imm(bits);
+            NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] + convert_to_32(imm(bits));
             printf("ADDI/U TO @%u, using @%u + %u\n", rt(bits), rs(bits), imm(bits));
             printf("RESULT @%u = %u\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
             break;
@@ -238,6 +248,9 @@ void process_instruction()
             break;
 
         case LUI:
+            NEXT_STATE.REGS[rt(bits)] = imm(bits) << 16;
+            printf("LUI TO @%u, using %u << 16\n", rt(bits), imm(bits));
+            printf("RESULT @%u = %u\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
             break;
         case LHU:
             break;
