@@ -14,6 +14,7 @@
 // Immediate Instructions
 #define ADDI 0b001000
 #define ADDIU 0b001001
+#define ANDI 0b001100
 #define XORI 0b001110
 #define LUI 0b001111
 
@@ -73,6 +74,7 @@
 // Shift Instructions
 #define SLL 0b000000
 #define SRL 0b000010
+#define SRA 0b000011
 
 // Miscellaneous Instructions
 #define MFLO 0b010010
@@ -99,10 +101,6 @@ uint32_t get_bits_between(uint32_t bits, int start, int size)
 void process_special(uint32_t bits)
 {
     uint8_t specialOpCode = (uint8_t) (bits & 0x3F);
-    uint8_t rs;
-    uint8_t rt;
-    uint8_t rd;
-    uint8_t sa;
 
     printf("SPECIAL\n");
 
@@ -120,6 +118,8 @@ void process_special(uint32_t bits)
     case SUB:
     case SUBU:
         NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rs(bits)] - CURRENT_STATE.REGS[rt(bits)];
+        printf("SUB TO @%u, using @%u - @%u\n", rd(bits), rs(bits), rt(bits));
+        printf("RESULT @%u = %d\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
     case SLT:
@@ -133,10 +133,14 @@ void process_special(uint32_t bits)
 
     case AND:
         NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rs(bits)] & CURRENT_STATE.REGS[rt(bits)];
+        printf("AND TO @%u, using @%u & @%u\n", rd(bits), rs(bits), rt(bits));
+        printf("RESULT @%u = %u\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
     case OR:
         NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rs(bits)] | CURRENT_STATE.REGS[rt(bits)];
+        printf("OR TO @%u, using @%u + @%u\n", rd(bits), rs(bits), rt(bits));
+        printf("RESULT @%u = %u\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
     case MULT:
@@ -157,9 +161,16 @@ void process_special(uint32_t bits)
 
     case SLL:
         NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rt(bits)] << sa(bits);
+        printf("SHIFT LEFT TO @%u, using @%u << %u\n", rd(bits), rt(bits), sa(bits));
+        printf("RESULT @%u = %u\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
+        // 00000100110100100000000000000000
         break;
 
+    case SRA:
     case SRL:
+        NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rt(bits)] >> sa(bits);
+        printf("SHIFT RIGHT TO @%u, using @%u >> %u\n", rd(bits), rt(bits), sa(bits));
+        printf("RESULT @%u = %u\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
     case MFLO:
@@ -173,12 +184,15 @@ void process_special(uint32_t bits)
 
     case XOR:
         NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rs(bits)] ^ CURRENT_STATE.REGS[rt(bits)];
+        printf("XOR TO @%u, using @%u ^ @%u\n", rd(bits), rs(bits), rt(bits));
+        printf("RESULT @%u = %u\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
     case ADD:
-        break;
-
     case ADDU:
+        NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rs(bits)] + CURRENT_STATE.REGS[rt(bits)];
+        printf("ADD TO @%u, using @%u + @%u\n", rd(bits), rs(bits), rt(bits));
+        printf("RESULT @%u = %d\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
     default:
@@ -195,7 +209,7 @@ void process_instruction()
 
     uint8_t opcode = (uint8_t) (bits >> 26);
 
-    printf("Last 6 bits: %u\n", opcode);
+    // printf("Last 6 bits: %u\n", opcode);
 
     switch(opcode)
     {
@@ -206,14 +220,23 @@ void process_instruction()
 
         case ADDI:
         case ADDIU:
-            printf("ADD TO %u, using %u + %u\n", rt(bits), rs(bits), imm(bits));
             NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] + imm(bits);
-            printf("RESULT AT %u = %u\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
+            printf("ADDI/U TO @%u, using @%u + %u\n", rt(bits), rs(bits), imm(bits));
+            printf("RESULT @%u = %u\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
             break;
 
         case XORI:
             NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] ^ imm(bits);
+            printf("XORI TO @%u, using @%u ^ %u\n", rt(bits), rs(bits), imm(bits));
+            printf("RESULT @%u = %u\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
             break;
+
+        case ANDI:
+            NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] & imm(bits);
+            printf("ANDI TO @%u, using @%u & %u\n", rt(bits), rs(bits), imm(bits));
+            printf("RESULT @%u = %u\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
+            break;
+
         case LUI:
             break;
         case LHU:
