@@ -27,9 +27,17 @@
 
 // Load/Store Instructions
 #define LHU 0b100101
+#define LH 0b100001
 #define SB 0b101000
 #define SW 0b101011
+#define SH 0b101001
 #define LW 0b100011
+#define LBU 0b100100
+#define LB 0b100000
+
+// Set Instructions
+#define SLTI 0b001010
+#define SLTIU 0b001011
 
 // SPECIAL
 #define SPECIAL 0b000000
@@ -45,6 +53,7 @@
 
 // Branch Instructions
 #define BLTZAL 0b10000
+#define BLTZ 0b00000
 #define BGEZAL 0b10001
 #define BGEZ 0b00001
 
@@ -73,6 +82,8 @@
 // Multiply/Divide Instructions
 #define MULT 0b011000
 #define MFHI 0b010000
+#define DIV 0b011010
+#define DIVU 0b011011
 
 // Jump Instructions
 #define JR 0b001000
@@ -89,6 +100,7 @@
 // Miscellaneous Instructions
 #define MFLO 0b010010
 #define MTHI 0b010001
+#define MTLO 0b010011
 #define NOR 0b100111
 #define XOR 0b100110
 #define ADD 0b100000
@@ -110,9 +122,9 @@ uint32_t get_bits_between(uint32_t bits, int start, int size)
     return (bits >> start) & MASK(size);
 }
 
-uint32_t convert_to_32(int16_t immediate) {
-    if ((immediate >> 15) == 1) {
-        return (uint32_t) (immediate | 0xFFFF0000);
+uint32_t convert_to_32(int16_t immediate, int bitLength) {
+    if ((immediate >> (bitLength - 1)) == 1) {
+        return (uint32_t) (immediate | (0xFFFFFFFF << bitLength));
     }
     else {
         return (uint32_t) immediate;
@@ -128,12 +140,15 @@ void process_special(uint32_t bits)
     switch (specialOpCode)
     {
     case SRLV:
+        NEXT_STATE.REGS[rd(bits)] = get_bits_between(CURRENT_STATE.REGS[rt(bits)] >> get_bits_between(rs(bits), 0, 5), 0, (32 - get_bits_between(rs(bits), 0, 5)));
         break;
 
     case SRAV:
+        NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rt(bits)] >> get_bits_between(CURRENT_STATE.REGS[rs(bits)], 0, 5);
         break;
 
     case SLLV:
+        NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rt(bits)] << get_bits_between(CURRENT_STATE.REGS[rs(bits)], 0, 5);
         break;
 
     case SUB:
@@ -144,9 +159,15 @@ void process_special(uint32_t bits)
         break;
 
     case SLT:
-        break;
-
     case SLTU:
+        if (CURRENT_STATE.REGS[rs(bits)] < CURRENT_STATE.REGS[rt(bits)])
+        {
+            NEXT_STATE.REGS[rd(bits)] = 0;
+        }
+        else
+        {
+            NEXT_STATE.REGS[rd(bits)] = 1;
+        }
         break;
 
     case MULTU:
@@ -164,15 +185,24 @@ void process_special(uint32_t bits)
         printf("RESULT @%u = %u\n\n", rd(bits), NEXT_STATE.REGS[rd(bits)]);
         break;
 
+    case DIV:
+        break;
+
+    case DIVU:
+        break;
+
     case MULT:
         break;
 
     case MFHI:
         break;
 
+    case MTLO:
+        break;
+
     case JR:
-        printf("JUMP %x\n\n", CURRENT_STATE.REGS[rs(bits)]);
         CURRENT_STATE.PC = CURRENT_STATE.REGS[rs(bits)] - 4;
+        printf("JUMP %x\n\n", CURRENT_STATE.REGS[rs(bits)]);
         break;
 
     case JALR:
@@ -234,8 +264,11 @@ void process_regimm(uint32_t bits)
         printf("COMPARING %u >= 0\n\n", CURRENT_STATE.REGS[rs(bits)]);
         if ((CURRENT_STATE.REGS[rs(bits)] >> 31) == 0)
         {
-            CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits << 2)) - 4;
+            CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
         }
+        break;
+
+    case BLTZ:
         break;
 
     case BLTZAL:
@@ -243,7 +276,7 @@ void process_regimm(uint32_t bits)
         NEXT_STATE.REGS[31] = CURRENT_STATE.PC + 4;
         if ((CURRENT_STATE.REGS[rs(bits)] >> 31) != 0)
         {
-            CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits << 2)) - 4;
+            CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
         }
         break;
 
@@ -252,7 +285,7 @@ void process_regimm(uint32_t bits)
         NEXT_STATE.REGS[31] = CURRENT_STATE.PC + 4;
         if ((CURRENT_STATE.REGS[rs(bits)] >> 31) == 0)
         {
-            CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits << 2)) - 4;
+            CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
         }
         break;
 
@@ -269,23 +302,24 @@ void process_instruction()
      * access memory. */
     printf("%x\n", CURRENT_STATE.PC);
     uint8_t opcode = (uint8_t) (bits >> 26);
+    uint32_t virtualAddress;
 
     // printf("Last 6 bits: %u\n", opcode);
 
     switch(opcode)
     {
         case J:
-            CURRENT_STATE.PC = (target(bits) << 2) - 4;
+            CURRENT_STATE.PC = ((target(bits)) << 2) - 4;
             break;
 
         case JAL:
             NEXT_STATE.REGS[31] = CURRENT_STATE.PC + 4;
-            CURRENT_STATE.PC = (target(bits) << 2) - 4;
+            CURRENT_STATE.PC = ((target(bits)) << 2) - 4;
             break;
 
         case ADDI:
         case ADDIU:
-            NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] + convert_to_32(imm(bits));
+            NEXT_STATE.REGS[rt(bits)] = CURRENT_STATE.REGS[rs(bits)] + convert_to_32(imm(bits), 16);
             printf("ADDI/U TO @%u, using @%u + %u\n", rt(bits), rs(bits), imm(bits));
             printf("RESULT @%u = %d\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
             break;
@@ -318,7 +352,7 @@ void process_instruction()
             printf("COMPARING %u != %u\n\n", CURRENT_STATE.REGS[rs(bits)], CURRENT_STATE.REGS[rt(bits)]);
             if (CURRENT_STATE.REGS[rs(bits)] != CURRENT_STATE.REGS[rt(bits)])
             {
-                CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits) << 2) - 4;
+                CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
             }
             break;
 
@@ -326,7 +360,7 @@ void process_instruction()
             printf("COMPARING %u == %u\n\n", CURRENT_STATE.REGS[rs(bits)], CURRENT_STATE.REGS[rt(bits)]);
             if (CURRENT_STATE.REGS[rs(bits)] == CURRENT_STATE.REGS[rt(bits)])
             {
-                CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits << 2)) - 4;
+                CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
             }
             break;
 
@@ -334,7 +368,7 @@ void process_instruction()
             printf("COMPARING %u > 0\n\n", CURRENT_STATE.REGS[rs(bits)]);
             if ((CURRENT_STATE.REGS[rs(bits)] >> 31) == 0 && CURRENT_STATE.REGS[rs(bits)] != 0)
             {
-                CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits << 2)) - 4;
+                CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
             }
             break;
 
@@ -342,22 +376,60 @@ void process_instruction()
             printf("COMPARING %u < 0 or = 0\n\n", CURRENT_STATE.REGS[rs(bits)]);
             if (((CURRENT_STATE.REGS[rs(bits)] >> 31) == 1) || (CURRENT_STATE.REGS[rs(bits)] == 0))
             {
-                CURRENT_STATE.PC = CURRENT_STATE.PC + convert_to_32(imm(bits << 2)) - 4;
+                CURRENT_STATE.PC = CURRENT_STATE.PC + ((convert_to_32(imm(bits), 16) << 2) - 4);
             }
             break;
 
+        case LH:
+            virtualAddress = mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]);
+            NEXT_STATE.REGS[rt(bits)] = convert_to_32(get_bits_between(virtualAddress, 0, 16), 16);
+            printf("READING %d, to @%d\n\n", mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]), NEXT_STATE.REGS[rt(bits)]);
+            break;
+
         case LHU:
+            virtualAddress = mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]);
+            NEXT_STATE.REGS[rt(bits)] = get_bits_between(virtualAddress, 0, 16);
+            printf("READING %d, to @%d\n\n", mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]), NEXT_STATE.REGS[rt(bits)]);
+            break;
+
+        case LB:
+            virtualAddress = mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]);
+            NEXT_STATE.REGS[rt(bits)] = convert_to_32(get_bits_between(virtualAddress, 0, 8), 8);
+            printf("READING %d, to @%d\n\n", mem_read_32(convert_to_32(imm(bits), 8) + CURRENT_STATE.REGS[base(bits)]), NEXT_STATE.REGS[rt(bits)]);
+            break;
+
+        case LBU:
+            virtualAddress = mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]);
+            NEXT_STATE.REGS[rt(bits)] = get_bits_between(virtualAddress, 0, 8);
+            printf("READING %d, to @%d\n\n", mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]), NEXT_STATE.REGS[rt(bits)]);
             break;
 
         case SB:
+            mem_write_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)], get_bits_between(CURRENT_STATE.REGS[rt(bits)], 0, 8));
+            printf("WRITING %d, at the Addr %d\n", get_bits_between(CURRENT_STATE.REGS[rt(bits)], 0, 8), convert_to_32(imm(bits), 16) + base(bits));
             break;
 
         case SW:
-            mem_write_32(convert_to_32(imm(bits)) + base(bits), CURRENT_STATE.REGS[rt(bits)]);
+            mem_write_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)], CURRENT_STATE.REGS[rt(bits)]);
+            printf("WRITING %d, at the Addr %d\n", CURRENT_STATE.REGS[rt(bits)], convert_to_32(imm(bits), 16) + base(bits));
+            printf("WROTE %d, to %d\n\n", mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]), convert_to_32(imm(bits), 16) + base(bits));
+            break;
+
+        case SH:
+            mem_write_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)], get_bits_between(CURRENT_STATE.REGS[rt(bits)], 0, 16));
+            printf("WRITING %d, at the Addr %d\n", get_bits_between(CURRENT_STATE.REGS[rt(bits)], 0, 16), convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]);
             break;
 
         case LW:
-            NEXT_STATE.REGS[rt(bits)] = (convert_to_32(imm(bits)));
+            NEXT_STATE.REGS[rt(bits)] = mem_read_32(convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[base(bits)]);
+            printf("READING %d, to @%d\n", convert_to_32(imm(bits), 16) + base(bits), rt(bits));
+            printf("CHECK @%d : %d\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
+            break;
+
+        case SLTI:
+            break;
+
+        case SLTIU:
             break;
 
         case REGIMM:
