@@ -130,7 +130,7 @@ typedef int32_t i32;
 #define base(bits) (get_bits_between(bits, 21, 5))
 #define target(bits) (get_bits_between(bits, 0, 26))
 
-#define DEBUG_FLAG
+// #define DEBUG_FLAG
 #ifdef DEBUG_FLAG
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
@@ -339,7 +339,10 @@ void process_ADDU(u32 bits)
 
 void process_SYSCALL(u32 bits)
 {
-    RUN_BIT = 0;
+    if (CURRENT_STATE.REGS[2] == 10)
+    {
+        RUN_BIT = 0;
+    }
 }
 
 /*
@@ -460,7 +463,7 @@ void process_special(u32 bits)
         break;
 
     case SYSCALL:
-        RUN_BIT = 0;
+        process_SYSCALL(bits);
         break;
     }
 }
