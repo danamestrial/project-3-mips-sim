@@ -130,7 +130,7 @@ typedef int32_t i32;
 #define base(bits) (get_bits_between(bits, 21, 5))
 #define target(bits) (get_bits_between(bits, 0, 26))
 
-// #define DEBUG_FLAG
+#define DEBUG_FLAG
 #ifdef DEBUG_FLAG
 #define DEBUG_PRINT(...) printf(__VA_ARGS__)
 #else
@@ -169,12 +169,14 @@ u32 convert_to_32(int16_t immediate, int bitLength) {
 
 void process_SRLV(u32 bits)
 {
-    NEXT_STATE.REGS[rd(bits)] = get_bits_between(CURRENT_STATE.REGS[rt(bits)] >> get_bits_between(rs(bits), 0, 5), 0, (32 - get_bits_between(rs(bits), 0, 5)));
+    NEXT_STATE.REGS[rd(bits)] = get_bits_between(CURRENT_STATE.REGS[rt(bits)] >> get_bits_between(CURRENT_STATE.REGS[rs(bits)], 0, 5), 0, (32 - get_bits_between(CURRENT_STATE.REGS[rs(bits)], 0, 5)));
+
+    printf("SRLV: %d\n\n", NEXT_STATE.REGS[rd(bits)]);
 }
 
 void process_SRAV(u32 bits)
 {
-    NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rt(bits)] >> get_bits_between(CURRENT_STATE.REGS[rs(bits)], 0, 5);
+    NEXT_STATE.REGS[rd(bits)] = (i32) CURRENT_STATE.REGS[rt(bits)] >> get_bits_between(CURRENT_STATE.REGS[rs(bits)], 0, 5);
 }
 
 void process_SLLV(u32 bits)
@@ -199,18 +201,18 @@ void process_SUBU(u32 bits)
 void process_SLT(u32 bits)
 {
     if ((i32) CURRENT_STATE.REGS[rs(bits)] < (i32) CURRENT_STATE.REGS[rt(bits)]) {
-        NEXT_STATE.REGS[rd(bits)] = 0;
-    } else {
         NEXT_STATE.REGS[rd(bits)] = 1;
+    } else {
+        NEXT_STATE.REGS[rd(bits)] = 0;
     }
 }
 
 void process_SLTU(u32 bits)
 {
     if (CURRENT_STATE.REGS[rs(bits)] < CURRENT_STATE.REGS[rt(bits)]) {
-        NEXT_STATE.REGS[rd(bits)] = 0;
-    } else {
         NEXT_STATE.REGS[rd(bits)] = 1;
+    } else {
+        NEXT_STATE.REGS[rd(bits)] = 0;
     }
 }
 
@@ -223,7 +225,7 @@ void process_MULT(u32 bits)
 
 void process_MULTU(u32 bits)
 {
-    uint64_t multiplied = CURRENT_STATE.REGS[rs(bits)] * CURRENT_STATE.REGS[rt(bits)];
+    uint64_t multiplied = (uint64_t) CURRENT_STATE.REGS[rs(bits)] * (uint64_t) CURRENT_STATE.REGS[rt(bits)];
     NEXT_STATE.LO = multiplied & 0xffffffff;
     NEXT_STATE.HI = (multiplied >> 32) & 0xffffffff;
 }
@@ -313,7 +315,7 @@ void process_MTHI(u32 bits)
 
 void process_NOR(u32 bits)
 {
-    NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rs(bits)] ^ CURRENT_STATE.REGS[rt(bits)];
+    NEXT_STATE.REGS[rd(bits)] = ~(CURRENT_STATE.REGS[rs(bits)] | CURRENT_STATE.REGS[rt(bits)]);
 }
 
 void process_XOR(u32 bits)
@@ -565,13 +567,16 @@ void process_JAL(u32 bits)
 void process_ADDI(u32 bits)
 {
     NEXT_STATE.REGS[rt(bits)] = (i32) convert_to_32(imm(bits), 16) + (i32) CURRENT_STATE.REGS[rs(bits)];
+
+    DEBUG_PRINT("ADDI TO @%d, using @%d + %d\n", rt(bits), rs(bits), imm(bits));
+    DEBUG_PRINT("RESULT @%d = %d\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
 }
 
 void process_ADDIU(u32 bits)
 {
     NEXT_STATE.REGS[rt(bits)] = convert_to_32(imm(bits), 16) + CURRENT_STATE.REGS[rs(bits)];
 
-    DEBUG_PRINT("ADDI/U TO @%u, using @%u + %u\n", rt(bits), rs(bits), imm(bits));
+    DEBUG_PRINT("ADDIU TO @%u, using @%u + %u\n", rt(bits), rs(bits), imm(bits));
     DEBUG_PRINT("RESULT @%u = %d\n\n", rt(bits), NEXT_STATE.REGS[rt(bits)]);
 }
 
