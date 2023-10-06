@@ -152,6 +152,8 @@ struct IDEX_PILELINE_REG
     u32 EXTENDEDIMM;
     u32 FUNCT;
     u32 PCPLUS4; // PC + 4
+    u32 HI;
+    u32 LO;
     enum Signal RegDst;
     enum Signal Jump;
     enum Signal Branch;
@@ -161,9 +163,11 @@ struct IDEX_PILELINE_REG
     enum Signal MemWrite;
     enum Signal ALUSrc;
     enum Signal RegWrite;
+    enum Signal SpecialRegHi;
+    enum Signal SpecialRegLo;
 };
 
-struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 struct EXMEM_PIPELINE_REG
 {
@@ -171,6 +175,8 @@ struct EXMEM_PIPELINE_REG
     u32 ALURESULT;
     u32 JUMPADDRESS;
     u32 RD;
+    u32 HI;
+    u32 LO;
     // no ALUOp & ALUSrc
     enum Signal RegDst;
     enum Signal Jump;
@@ -180,9 +186,11 @@ struct EXMEM_PIPELINE_REG
     enum Signal MemToReg;
     enum Signal MemWrite;
     enum Signal RegWrite;
+    enum Signal SpecialRegHi;
+    enum Signal SpecialRegLo;
 };
 
-struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 struct MEMWB_PIPELINE_REG
 {
@@ -190,6 +198,8 @@ struct MEMWB_PIPELINE_REG
     u32 ALURESULT;
     u32 JUMPADDRESS;
     u32 RD;
+    u32 HI;
+    u32 LO;
     // no ALUOp & ALUSrc & MemRead/Write
     enum Signal RegDst;
     enum Signal Jump;
@@ -197,9 +207,11 @@ struct MEMWB_PIPELINE_REG
     enum Signal BranchGate;
     enum Signal MemToReg;
     enum Signal RegWrite;
+    enum Signal SpecialRegHi;
+    enum Signal SpecialRegLo;
 };
 
-struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW};
+struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 struct CONTROL_UNIT
 {
@@ -241,7 +253,16 @@ void writeback()
     u32 RD = MEMWB_REG.RD;
     u32 ALURESULT = MEMWB_REG.ALURESULT;
 
-    if (MEMWB_REG.RegWrite == HIGH)
+    if (MEMWB_REG.SpecialRegHi == HIGH)
+    {
+        printf("MTHI @: %u\n", NEXT_STATE.HI);
+        NEXT_STATE.HI = ALURESULT;
+    }
+    else if (MEMWB_REG.SpecialRegLo == HIGH)
+    {
+        NEXT_STATE.LO = ALURESULT;
+    }
+    else if (MEMWB_REG.RegWrite == HIGH)
     {
         //write to register
         NEXT_STATE.REGS[RD] = ALURESULT;
@@ -277,12 +298,16 @@ void writeback()
     MEMWB_REG.JUMPADDRESS = 0;
     MEMWB_REG.ALURESULT = 0;
     MEMWB_REG.RD = 0;
+    MEMWB_REG.HI = 0;
+    MEMWB_REG.LO = 0;
     MEMWB_REG.RegDst = LOW;
     MEMWB_REG.Jump = LOW;
     MEMWB_REG.Branch = LOW;
     MEMWB_REG.BranchGate = LOW;
     MEMWB_REG.MemToReg = LOW;
     MEMWB_REG.RegWrite = LOW;
+    MEMWB_REG.SpecialRegHi = LOW;
+    MEMWB_REG.SpecialRegLo = LOW;
 }
 
 void memory()
@@ -299,15 +324,21 @@ void memory()
         MEMWB_REG.JUMPADDRESS = EXMEM_REG.JUMPADDRESS;
         MEMWB_REG.RD = EXMEM_REG.RD;
         MEMWB_REG.ALURESULT = EXMEM_REG.ALURESULT;
+        MEMWB_REG.HI = EXMEM_REG.HI;
+        MEMWB_REG.LO = EXMEM_REG.LO;
         MEMWB_REG.RegDst = EXMEM_REG.RegDst;
         MEMWB_REG.RegWrite = EXMEM_REG.RegWrite;
         MEMWB_REG.MemToReg = EXMEM_REG.MemToReg;
+        MEMWB_REG.SpecialRegHi = EXMEM_REG.SpecialRegHi;
+        MEMWB_REG.SpecialRegLo = EXMEM_REG.SpecialRegLo;
     }
 
     // Reset EXMEM
     EXMEM_REG.JUMPADDRESS = 0;
     EXMEM_REG.ALURESULT = 0;
     EXMEM_REG.RD = 0;
+    EXMEM_REG.HI = 0;
+    EXMEM_REG.LO = 0;
     EXMEM_REG.RegDst = LOW;
     EXMEM_REG.Jump = LOW;
     EXMEM_REG.Branch = LOW;
@@ -316,6 +347,8 @@ void memory()
     EXMEM_REG.MemToReg = LOW;
     EXMEM_REG.MemWrite = LOW;
     EXMEM_REG.RegWrite = LOW;
+    EXMEM_REG.SpecialRegHi = LOW;
+    EXMEM_REG.SpecialRegLo = LOW;
 }
 
 void execute()
@@ -332,6 +365,17 @@ void execute()
         if (op == SPECIAL) {
             switch(IDEX_REG.FUNCT)
             {
+                case MFLO:
+                    EXMEM_REG.ALURESULT = IDEX_REG.LO;
+                    break;
+                case MFHI:
+                    EXMEM_REG.ALURESULT = IDEX_REG.HI;
+                    printf("MFHI CONTENT = %u\n", EXMEM_REG.ALURESULT);
+                    break;
+                case MTLO:
+                case MTHI:
+                    EXMEM_REG.ALURESULT = IDEX_REG.RSDATA;
+                    break;
                 case ADDU:
                     EXMEM_REG.ALURESULT = ALUDATA1 + ALUDATA2;
                     break;
@@ -341,11 +385,26 @@ void execute()
         } else {
             switch (op)
             {
+                case LUI:
+                    EXMEM_REG.ALURESULT = ALUDATA2 << 16;
+                    break;
+                case ORI:
+                    EXMEM_REG.ALURESULT = ALUDATA2 & 0xFFFF | ALUDATA1;
+                    break;
+                case ADDI:
+                    EXMEM_REG.ALURESULT = (i32) ALUDATA1 + (i32) ALUDATA2;
+                    break;
                 case ADDIU:
                     EXMEM_REG.ALURESULT = ALUDATA1 + ALUDATA2;
                     break;
+                case BNE:
+                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
+                    printf("BNE %d\n", (ALUDATA1 != ALUDATA2));
+                    // Built in GATE
+                    EXMEM_REG.BranchGate = (ALUDATA1 != ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                    break;
                 case BEQ:
-                    EXMEM_REG.JUMPADDRESS = IDEX_REG.PCPLUS4 + (IDEX_REG.EXTENDEDIMM << 2);
+                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
                     // CURRENT_STATE.REGS[rs(bits)] == CURRENT_STATE.REGS[rt(bits)]
                     // Built in GATE
                     EXMEM_REG.BranchGate = (ALUDATA1 == ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
@@ -359,13 +418,18 @@ void execute()
         {
             switch (op)
             {
+            case JAL:
+                EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
             case J:
                 EXMEM_REG.JUMPADDRESS = (IDEX_REG.TARGET << 2);
                 break;
-            case JR:
-                printf("jump to %u\n", IDEX_REG.RSDATA);
-                EXMEM_REG.JUMPADDRESS = IDEX_REG.RSDATA;
-                break;
+            case SPECIAL:
+                switch (IDEX_REG.FUNCT)
+                {
+                case JR:
+                    EXMEM_REG.JUMPADDRESS = IDEX_REG.RSDATA;
+                    break;
+                }
             }
         }
     }
@@ -373,12 +437,16 @@ void execute()
     // enum Signal Jump;
     // enum Signal Branch;
     EXMEM_REG.RD = IDEX_REG.RD;
+    EXMEM_REG.HI = IDEX_REG.HI;
+    EXMEM_REG.LO = IDEX_REG.LO;
     EXMEM_REG.Jump = IDEX_REG.Jump;
     EXMEM_REG.RegDst = IDEX_REG.RegDst;
     EXMEM_REG.MemRead = IDEX_REG.MemRead;
     EXMEM_REG.MemToReg = IDEX_REG.MemToReg;
     EXMEM_REG.MemWrite = IDEX_REG.MemWrite;
     EXMEM_REG.RegWrite = IDEX_REG.RegWrite;
+    EXMEM_REG.SpecialRegHi = IDEX_REG.SpecialRegHi;
+    EXMEM_REG.SpecialRegLo = IDEX_REG.SpecialRegLo;
 
     // Reset ID/EX
     // u32 OP;
@@ -404,6 +472,8 @@ void execute()
     IDEX_REG.EXTENDEDIMM = 0;
     IDEX_REG.FUNCT = 0;
     IDEX_REG.PCPLUS4 = 0;
+    IDEX_REG.HI = 0;
+    IDEX_REG.LO = 0;
     IDEX_REG.RegDst = LOW;
     IDEX_REG.Jump = LOW;
     IDEX_REG.Branch = LOW;
@@ -413,6 +483,8 @@ void execute()
     IDEX_REG.MemWrite = LOW;
     IDEX_REG.ALUSrc = LOW;
     IDEX_REG.RegWrite = LOW;
+    IDEX_REG.SpecialRegHi = LOW;
+    IDEX_REG.SpecialRegLo = LOW;
 }
 
 void decode()
@@ -429,17 +501,24 @@ void decode()
 
     switch(op)
     {
+        case JAL:
+            CONTROL_UNIT.RegWrite = HIGH;
+            IDEX_REG.RD = 31;
         case J: // J-Type
             printf("Jump\n");
             CONTROL_UNIT.Jump = HIGH;
             IDEX_REG.TARGET = target(IR);
             break;
+        case BNE:
         case BEQ: // I-Type (but branch)
             CONTROL_UNIT.Branch = HIGH;
             CONTROL_UNIT.ALUOp = HIGH;
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
             break;
-        case ADDIU: // I-Type
+        case LUI:
+        case ORI:
+        case ADDI: // I-Type
+        case ADDIU:
             printf("I-Type\n");
             CONTROL_UNIT.RegDst = HIGH;
             CONTROL_UNIT.ALUOp = HIGH;
@@ -454,6 +533,27 @@ void decode()
             {
                 case JR:
                     CONTROL_UNIT.Jump = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case MFHI:
+                case MFLO:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.RD = rd(IR);
+                    IDEX_REG.FUNCT = funct(IR);
+                    printf("MFHI: %u\n", IDEX_REG.RD);
+                    break;
+                case MTLO:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.SpecialRegLo = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case MTHI:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.SpecialRegHi = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
                     break;
                 case ADDU:
                     CONTROL_UNIT.RegDst = HIGH;
@@ -472,8 +572,11 @@ void decode()
     // Pipe everything into IDEX register pipeline
 
     IDEX_REG.OP = op;
+    IDEX_REG.PCPLUS4 = IFID_REG.PCPLUS4;
     IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IR)];
     IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IR)];
+    IDEX_REG.HI = CURRENT_STATE.HI;
+    IDEX_REG.LO = CURRENT_STATE.LO;
     IDEX_REG.Jump = CONTROL_UNIT.Jump;
     IDEX_REG.Branch = CONTROL_UNIT.Branch;
     IDEX_REG.RegDst = CONTROL_UNIT.RegDst;
