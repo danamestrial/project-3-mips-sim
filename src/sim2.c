@@ -148,8 +148,10 @@ struct IDEX_PILELINE_REG
     u32 RSDATA;
     u32 RTDATA;
     u32 RD;
+    u32 TARGET;
     u32 EXTENDEDIMM;
     u32 FUNCT;
+    u32 PCPLUS4; // PC + 4
     enum Signal RegDst;
     enum Signal Jump;
     enum Signal Branch;
@@ -161,39 +163,43 @@ struct IDEX_PILELINE_REG
     enum Signal RegWrite;
 };
 
-struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 struct EXMEM_PIPELINE_REG
 {
     // no extendImm, RSDATA/RTDATA, FUNCT
     u32 ALURESULT;
+    u32 JUMPADDRESS;
     u32 RD;
     // no ALUOp & ALUSrc
     enum Signal RegDst;
     enum Signal Jump;
     enum Signal Branch;
+    enum Signal BranchGate;
     enum Signal MemRead;
     enum Signal MemToReg;
     enum Signal MemWrite;
     enum Signal RegWrite;
 };
 
-struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 struct MEMWB_PIPELINE_REG
 {
     // no extendImm, RSDATA/RTDATA, FUNCT
     u32 ALURESULT;
+    u32 JUMPADDRESS;
     u32 RD;
     // no ALUOp & ALUSrc & MemRead/Write
     enum Signal RegDst;
     enum Signal Jump;
     enum Signal Branch;
+    enum Signal BranchGate;
     enum Signal MemToReg;
     enum Signal RegWrite;
 };
 
-struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, LOW, LOW, LOW, LOW, LOW};
+struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW};
 
 struct CONTROL_UNIT
 {
@@ -235,16 +241,28 @@ void writeback()
     u32 RD = MEMWB_REG.RD;
     u32 ALURESULT = MEMWB_REG.ALURESULT;
 
-    if (MEMWB_REG.MemToReg == HIGH)
-    {
-        // Do something with mem
-    }
-    else
+    if (MEMWB_REG.RegWrite == HIGH)
     {
         //write to register
         NEXT_STATE.REGS[RD] = ALURESULT;
         printf("writing: %u into %u\n",ALURESULT, RD);
     }
+
+    if (MEMWB_REG.Jump == HIGH)
+    {
+        printf("jumped\n");
+        NEXT_STATE.PC = MEMWB_REG.JUMPADDRESS;
+    }
+    else if (MEMWB_REG.BranchGate == HIGH)
+    {
+        printf("branched\n");
+        NEXT_STATE.PC = MEMWB_REG.JUMPADDRESS;
+    }
+    else
+    {
+        NEXT_STATE.PC = CURRENT_STATE.PC + 4;
+    }
+
 
     // RESET MEMWB
     // // no extendImm, RSDATA/RTDATA, FUNCT
@@ -256,9 +274,13 @@ void writeback()
     // enum Signal Branch;
     // enum Signal MemToReg;
     // enum Signal RegWrite;
+    MEMWB_REG.JUMPADDRESS = 0;
     MEMWB_REG.ALURESULT = 0;
     MEMWB_REG.RD = 0;
     MEMWB_REG.RegDst = LOW;
+    MEMWB_REG.Jump = LOW;
+    MEMWB_REG.Branch = LOW;
+    MEMWB_REG.BranchGate = LOW;
     MEMWB_REG.MemToReg = LOW;
     MEMWB_REG.RegWrite = LOW;
 }
@@ -267,11 +289,14 @@ void memory()
 {
     if (EXMEM_REG.MemWrite == HIGH)
     {
-        //do something
+        printf("No Mem\n");
     }
     else
     {
         printf("Memory down\n");
+        MEMWB_REG.Jump = EXMEM_REG.Jump;
+        MEMWB_REG.BranchGate = EXMEM_REG.BranchGate;
+        MEMWB_REG.JUMPADDRESS = EXMEM_REG.JUMPADDRESS;
         MEMWB_REG.RD = EXMEM_REG.RD;
         MEMWB_REG.ALURESULT = EXMEM_REG.ALURESULT;
         MEMWB_REG.RegDst = EXMEM_REG.RegDst;
@@ -280,19 +305,13 @@ void memory()
     }
 
     // Reset EXMEM
-    // u32 ALURESULT;
-    // u32 RD;
-    // // no ALUOp & ALUSrc
-    // enum Signal RegDst;
-    // enum Signal Jump;
-    // enum Signal Branch;
-    // enum Signal MemRead;
-    // enum Signal MemToReg;
-    // enum Signal MemWrite;
-    // enum Signal RegWrite;
+    EXMEM_REG.JUMPADDRESS = 0;
     EXMEM_REG.ALURESULT = 0;
     EXMEM_REG.RD = 0;
     EXMEM_REG.RegDst = LOW;
+    EXMEM_REG.Jump = LOW;
+    EXMEM_REG.Branch = LOW;
+    EXMEM_REG.BranchGate = LOW;
     EXMEM_REG.MemRead = LOW;
     EXMEM_REG.MemToReg = LOW;
     EXMEM_REG.MemWrite = LOW;
@@ -325,6 +344,28 @@ void execute()
                 case ADDIU:
                     EXMEM_REG.ALURESULT = ALUDATA1 + ALUDATA2;
                     break;
+                case BEQ:
+                    EXMEM_REG.JUMPADDRESS = IDEX_REG.PCPLUS4 + (IDEX_REG.EXTENDEDIMM << 2);
+                    // CURRENT_STATE.REGS[rs(bits)] == CURRENT_STATE.REGS[rt(bits)]
+                    // Built in GATE
+                    EXMEM_REG.BranchGate = (ALUDATA1 == ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                    break;
+            }
+        }
+    }
+    else
+    {
+        if (IDEX_REG.Jump == HIGH)
+        {
+            switch (op)
+            {
+            case J:
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.TARGET << 2);
+                break;
+            case JR:
+                printf("jump to %u\n", IDEX_REG.RSDATA);
+                EXMEM_REG.JUMPADDRESS = IDEX_REG.RSDATA;
+                break;
             }
         }
     }
@@ -332,6 +373,7 @@ void execute()
     // enum Signal Jump;
     // enum Signal Branch;
     EXMEM_REG.RD = IDEX_REG.RD;
+    EXMEM_REG.Jump = IDEX_REG.Jump;
     EXMEM_REG.RegDst = IDEX_REG.RegDst;
     EXMEM_REG.MemRead = IDEX_REG.MemRead;
     EXMEM_REG.MemToReg = IDEX_REG.MemToReg;
@@ -358,14 +400,18 @@ void execute()
     IDEX_REG.RSDATA = 0;
     IDEX_REG.RTDATA = 0;
     IDEX_REG.RD = 0;
+    IDEX_REG.TARGET = 0;
     IDEX_REG.EXTENDEDIMM = 0;
     IDEX_REG.FUNCT = 0;
+    IDEX_REG.PCPLUS4 = 0;
     IDEX_REG.RegDst = LOW;
+    IDEX_REG.Jump = LOW;
+    IDEX_REG.Branch = LOW;
     IDEX_REG.MemRead = LOW;
     IDEX_REG.MemToReg = LOW;
     IDEX_REG.ALUOp = LOW;
     IDEX_REG.MemWrite = LOW;
-    IDEX_REG. ALUSrc = LOW;
+    IDEX_REG.ALUSrc = LOW;
     IDEX_REG.RegWrite = LOW;
 }
 
@@ -383,8 +429,18 @@ void decode()
 
     switch(op)
     {
-        case ADDIU:
-            printf("ADDIUOP\n");
+        case J: // J-Type
+            printf("Jump\n");
+            CONTROL_UNIT.Jump = HIGH;
+            IDEX_REG.TARGET = target(IR);
+            break;
+        case BEQ: // I-Type (but branch)
+            CONTROL_UNIT.Branch = HIGH;
+            CONTROL_UNIT.ALUOp = HIGH;
+            IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
+            break;
+        case ADDIU: // I-Type
+            printf("I-Type\n");
             CONTROL_UNIT.RegDst = HIGH;
             CONTROL_UNIT.ALUOp = HIGH;
             CONTROL_UNIT.RegWrite = HIGH;
@@ -393,9 +449,12 @@ void decode()
             printf("CHECK: %u\n", IDEX_REG.RD);
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
             break;
-        case SPECIAL:
+        case SPECIAL: // R-Type
             switch(specialOpCode) // This op code needs RegWrite
             {
+                case JR:
+                    CONTROL_UNIT.Jump = HIGH;
+                    break;
                 case ADDU:
                     CONTROL_UNIT.RegDst = HIGH;
                     CONTROL_UNIT.ALUOp = HIGH;
@@ -415,6 +474,8 @@ void decode()
     IDEX_REG.OP = op;
     IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IR)];
     IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IR)];
+    IDEX_REG.Jump = CONTROL_UNIT.Jump;
+    IDEX_REG.Branch = CONTROL_UNIT.Branch;
     IDEX_REG.RegDst = CONTROL_UNIT.RegDst;
     IDEX_REG.ALUOp = CONTROL_UNIT.ALUOp;
     IDEX_REG.RegWrite = CONTROL_UNIT.RegWrite;
@@ -425,16 +486,9 @@ void decode()
     IFID_REG.PCPLUS4 = 0;
 
     // RESET CONTROL UNIT
-    // enum Signal RegDst;
-    // enum Signal Jump;
-    // enum Signal Branch;
-    // enum Signal MemRead;
-    // enum Signal MemToReg;
-    // enum Signal ALUOp;
-    // enum Signal MemWrite;
-    // enum Signal ALUSrc;
-    // enum Signal RegWrite;
     CONTROL_UNIT.RegDst = LOW;
+    CONTROL_UNIT.Jump = LOW;
+    CONTROL_UNIT.Branch = LOW;
     CONTROL_UNIT.MemRead = LOW;
     CONTROL_UNIT.MemToReg = LOW;
     CONTROL_UNIT.ALUOp = LOW;
@@ -479,6 +533,4 @@ void process_instruction()
     /* execute one instruction here. You should use CURRENT_STATE and modify
      * values in NEXT_STATE. You can call mem_read_32() and mem_write_32() to
      * access memory. */
-
-    NEXT_STATE.PC = CURRENT_STATE.PC + 4;
 }
