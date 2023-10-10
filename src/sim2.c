@@ -154,6 +154,12 @@ struct IFID_PIPELINE_REG
 
 struct IFID_PIPELINE_REG IFID_REG = {0, 0};
 
+void reset_IFID_pipeline()
+{
+    IFID_REG.IR = 0;
+    IFID_REG.PCPLUS4 = 0;
+}
+
 struct IDEX_PILELINE_REG
 {
     u32 OP;
@@ -184,6 +190,34 @@ struct IDEX_PILELINE_REG
 
 struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
+void reset_IDEX_pipeline()
+{
+    IDEX_REG.OP = 0;
+    IDEX_REG.RSDATA = 0;
+    IDEX_REG.RS = 0;
+    IDEX_REG.RTDATA = 0;
+    IDEX_REG.RT = 0;
+    IDEX_REG.SA = 0;
+    IDEX_REG.RD = 0;
+    IDEX_REG.TARGET = 0;
+    IDEX_REG.EXTENDEDIMM = 0;
+    IDEX_REG.FUNCT = 0;
+    IDEX_REG.PCPLUS4 = 0;
+    IDEX_REG.HI = 0;
+    IDEX_REG.LO = 0;
+    IDEX_REG.RegDst = LOW;
+    IDEX_REG.Jump = LOW;
+    IDEX_REG.Branch = LOW;
+    IDEX_REG.MemRead = LOW;
+    IDEX_REG.MemToReg = LOW;
+    IDEX_REG.ALUOp = LOW;
+    IDEX_REG.MemWrite = LOW;
+    IDEX_REG.ALUSrc = LOW;
+    IDEX_REG.RegWrite = LOW;
+    IDEX_REG.SpecialRegHi = LOW;
+    IDEX_REG.SpecialRegLo = LOW;
+}
+
 struct EXMEM_PIPELINE_REG
 {
     // no extendImm, RSDATA/RTDATA, FUNCT
@@ -195,12 +229,9 @@ struct EXMEM_PIPELINE_REG
     u32 RTDATA;
     u32 OP;
     u32 RD;
-    u32 HI;
-    u32 LO;
     // no ALUOp & ALUSrc
     enum Signal RegDst;
     enum Signal Jump;
-    enum Signal Branch;
     enum Signal BranchGate;
     enum Signal MemRead;
     enum Signal MemToReg;
@@ -210,7 +241,28 @@ struct EXMEM_PIPELINE_REG
     enum Signal SpecialRegLo;
 };
 
-struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+
+void reset_EXMEM_pipeline()
+{
+    EXMEM_REG.JUMPADDRESS = 0;
+    EXMEM_REG.ALURESULT = 0;
+    EXMEM_REG.ALURESULT2 = 0;
+    EXMEM_REG.EXTENDEDIMM = 0;
+    EXMEM_REG.OP = 0;
+    EXMEM_REG.RSDATA = 0;
+    EXMEM_REG.RTDATA = 0;
+    EXMEM_REG.RD = 0;
+    EXMEM_REG.RegDst = LOW;
+    EXMEM_REG.Jump = LOW;
+    EXMEM_REG.BranchGate = LOW;
+    EXMEM_REG.MemRead = LOW;
+    EXMEM_REG.MemToReg = LOW;
+    EXMEM_REG.MemWrite = LOW;
+    EXMEM_REG.RegWrite = LOW;
+    EXMEM_REG.SpecialRegHi = LOW;
+    EXMEM_REG.SpecialRegLo = LOW;
+}
 
 struct MEMWB_PIPELINE_REG
 {
@@ -219,12 +271,9 @@ struct MEMWB_PIPELINE_REG
     u32 ALURESULT2;
     u32 JUMPADDRESS;
     u32 RD;
-    u32 HI;
-    u32 LO;
     // no ALUOp & ALUSrc & MemRead/Write
     enum Signal RegDst;
     enum Signal Jump;
-    enum Signal Branch;
     enum Signal BranchGate;
     enum Signal MemToReg;
     enum Signal RegWrite;
@@ -232,7 +281,22 @@ struct MEMWB_PIPELINE_REG
     enum Signal SpecialRegLo;
 };
 
-struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+
+void reset_MEMWB_pipeline()
+{
+    MEMWB_REG.JUMPADDRESS = 0;
+    MEMWB_REG.ALURESULT = 0;
+    MEMWB_REG.ALURESULT2 = 0;
+    MEMWB_REG.RD = 0;
+    MEMWB_REG.RegDst = LOW;
+    MEMWB_REG.Jump = LOW;
+    MEMWB_REG.BranchGate = LOW;
+    MEMWB_REG.MemToReg = LOW;
+    MEMWB_REG.RegWrite = LOW;
+    MEMWB_REG.SpecialRegHi = LOW;
+    MEMWB_REG.SpecialRegLo = LOW;
+}
 
 struct CONTROL_UNIT
 {
@@ -249,6 +313,18 @@ struct CONTROL_UNIT
 
 struct CONTROL_UNIT CONTROL_UNIT = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
+void reset_control_unit()
+{
+    CONTROL_UNIT.RegDst = LOW;
+    CONTROL_UNIT.Jump = LOW;
+    CONTROL_UNIT.Branch = LOW;
+    CONTROL_UNIT.MemRead = LOW;
+    CONTROL_UNIT.MemToReg = LOW;
+    CONTROL_UNIT.ALUOp = LOW;
+    CONTROL_UNIT.MemWrite = LOW;
+    CONTROL_UNIT.ALUSrc = LOW;
+    CONTROL_UNIT.RegWrite = LOW;
+}
 
 u32 get_bits_between(u32 bits, int start, int size)
 {
@@ -268,6 +344,69 @@ u32 instruction_memory(u32 pc)
 {
     return mem_read_32(pc);
 }
+
+/////////////////////////////
+//                         //
+//    PIPELINE FUNCTION    //
+//                         //
+/////////////////////////////
+
+void pipe_to_IDEX()
+{
+    IDEX_REG.OP = op(IFID_REG.IR);
+    IDEX_REG.PCPLUS4 = IFID_REG.PCPLUS4;
+    IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IFID_REG.IR)];
+    IDEX_REG.RS = rs(IFID_REG.IR);
+    IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IFID_REG.IR)];
+    IDEX_REG.RT = rt(IFID_REG.IR);
+    IDEX_REG.SA = shamt(IFID_REG.IR);
+    IDEX_REG.HI = CURRENT_STATE.HI;
+    IDEX_REG.LO = CURRENT_STATE.LO;
+    IDEX_REG.Jump = CONTROL_UNIT.Jump;
+    IDEX_REG.Branch = CONTROL_UNIT.Branch;
+    IDEX_REG.RegDst = CONTROL_UNIT.RegDst;
+    IDEX_REG.ALUOp = CONTROL_UNIT.ALUOp;
+    IDEX_REG.RegWrite = CONTROL_UNIT.RegWrite;
+    IDEX_REG.ALUSrc = CONTROL_UNIT.ALUSrc;
+}
+
+void pipe_to_EXMEM()
+{
+    EXMEM_REG.RSDATA = IDEX_REG.RSDATA;
+    EXMEM_REG.RTDATA = IDEX_REG.RTDATA;
+    EXMEM_REG.OP = IDEX_REG.OP;
+    EXMEM_REG.RD = IDEX_REG.RD;
+    EXMEM_REG.EXTENDEDIMM = IDEX_REG.EXTENDEDIMM;
+    EXMEM_REG.Jump = IDEX_REG.Jump;
+    EXMEM_REG.RegDst = IDEX_REG.RegDst;
+    EXMEM_REG.MemRead = IDEX_REG.MemRead;
+    EXMEM_REG.MemToReg = IDEX_REG.MemToReg;
+    EXMEM_REG.MemWrite = IDEX_REG.MemWrite;
+    EXMEM_REG.RegWrite = IDEX_REG.RegWrite;
+    EXMEM_REG.SpecialRegHi = IDEX_REG.SpecialRegHi;
+    EXMEM_REG.SpecialRegLo = IDEX_REG.SpecialRegLo;
+}
+
+void pipe_to_MEMWB()
+{
+    MEMWB_REG.Jump = EXMEM_REG.Jump;
+    MEMWB_REG.BranchGate = EXMEM_REG.BranchGate;
+    MEMWB_REG.JUMPADDRESS = EXMEM_REG.JUMPADDRESS;
+    MEMWB_REG.RD = EXMEM_REG.RD;
+    MEMWB_REG.ALURESULT = EXMEM_REG.ALURESULT;
+    MEMWB_REG.ALURESULT2 = EXMEM_REG.ALURESULT2;
+    MEMWB_REG.RegDst = EXMEM_REG.RegDst;
+    MEMWB_REG.RegWrite = EXMEM_REG.RegWrite;
+    MEMWB_REG.MemToReg = EXMEM_REG.MemToReg;
+    MEMWB_REG.SpecialRegHi = EXMEM_REG.SpecialRegHi;
+    MEMWB_REG.SpecialRegLo = EXMEM_REG.SpecialRegLo;
+}
+
+//////////////////////////
+//                      //
+//    MAIN FUNCTIONS    //
+//                      //
+//////////////////////////
 
 void writeback()
 {
@@ -313,29 +452,8 @@ void writeback()
 
 
     // RESET MEMWB
-    // // no extendImm, RSDATA/RTDATA, FUNCT
-    // u32 ALURESULT;
-    // u32 RD;
-    // // no ALUOp & ALUSrc & MemRead/Write
-    // enum Signal RegDst;
-    // enum Signal Jump;
-    // enum Signal Branch;
-    // enum Signal MemToReg;
-    // enum Signal RegWrite;
-    MEMWB_REG.JUMPADDRESS = 0;
-    MEMWB_REG.ALURESULT = 0;
-    MEMWB_REG.ALURESULT2 = 0;
-    MEMWB_REG.RD = 0;
-    MEMWB_REG.HI = 0;
-    MEMWB_REG.LO = 0;
-    MEMWB_REG.RegDst = LOW;
-    MEMWB_REG.Jump = LOW;
-    MEMWB_REG.Branch = LOW;
-    MEMWB_REG.BranchGate = LOW;
-    MEMWB_REG.MemToReg = LOW;
-    MEMWB_REG.RegWrite = LOW;
-    MEMWB_REG.SpecialRegHi = LOW;
-    MEMWB_REG.SpecialRegLo = LOW;
+    reset_MEMWB_pipeline();
+
 }
 
 void memory()
@@ -381,45 +499,11 @@ void memory()
                 break;
         }
     }
-    // else
-    // {
-        printf("Memory down\n");
-        MEMWB_REG.Jump = EXMEM_REG.Jump;
-        MEMWB_REG.BranchGate = EXMEM_REG.BranchGate;
-        MEMWB_REG.JUMPADDRESS = EXMEM_REG.JUMPADDRESS;
-        MEMWB_REG.RD = EXMEM_REG.RD;
-        MEMWB_REG.ALURESULT = EXMEM_REG.ALURESULT;
-        MEMWB_REG.ALURESULT2 = EXMEM_REG.ALURESULT2;
-        MEMWB_REG.HI = EXMEM_REG.HI;
-        MEMWB_REG.LO = EXMEM_REG.LO;
-        MEMWB_REG.RegDst = EXMEM_REG.RegDst;
-        MEMWB_REG.RegWrite = EXMEM_REG.RegWrite;
-        MEMWB_REG.MemToReg = EXMEM_REG.MemToReg;
-        MEMWB_REG.SpecialRegHi = EXMEM_REG.SpecialRegHi;
-        MEMWB_REG.SpecialRegLo = EXMEM_REG.SpecialRegLo;
-    // }
+    printf("Memory down\n");
+    pipe_to_MEMWB();
 
     // Reset EXMEM
-    EXMEM_REG.JUMPADDRESS = 0;
-    EXMEM_REG.ALURESULT = 0;
-    EXMEM_REG.ALURESULT2 = 0;
-    EXMEM_REG.EXTENDEDIMM = 0;
-    EXMEM_REG.OP = 0;
-    EXMEM_REG.RSDATA = 0;
-    EXMEM_REG.RTDATA = 0;
-    EXMEM_REG.RD = 0;
-    EXMEM_REG.HI = 0;
-    EXMEM_REG.LO = 0;
-    EXMEM_REG.RegDst = LOW;
-    EXMEM_REG.Jump = LOW;
-    EXMEM_REG.Branch = LOW;
-    EXMEM_REG.BranchGate = LOW;
-    EXMEM_REG.MemRead = LOW;
-    EXMEM_REG.MemToReg = LOW;
-    EXMEM_REG.MemWrite = LOW;
-    EXMEM_REG.RegWrite = LOW;
-    EXMEM_REG.SpecialRegHi = LOW;
-    EXMEM_REG.SpecialRegLo = LOW;
+    reset_EXMEM_pipeline();
 }
 
 void execute()
@@ -630,64 +714,10 @@ void execute()
         }
     }
 
-    // enum Signal Jump;
-    // enum Signal Branch;
-    EXMEM_REG.RSDATA = IDEX_REG.RSDATA;
-    EXMEM_REG.RTDATA = IDEX_REG.RTDATA;
-    EXMEM_REG.OP = IDEX_REG.OP;
-    EXMEM_REG.RD = IDEX_REG.RD;
-    EXMEM_REG.HI = IDEX_REG.HI;
-    EXMEM_REG.LO = IDEX_REG.LO;
-    EXMEM_REG.EXTENDEDIMM = IDEX_REG.EXTENDEDIMM;
-    EXMEM_REG.Jump = IDEX_REG.Jump;
-    EXMEM_REG.RegDst = IDEX_REG.RegDst;
-    EXMEM_REG.MemRead = IDEX_REG.MemRead;
-    EXMEM_REG.MemToReg = IDEX_REG.MemToReg;
-    EXMEM_REG.MemWrite = IDEX_REG.MemWrite;
-    EXMEM_REG.RegWrite = IDEX_REG.RegWrite;
-    EXMEM_REG.SpecialRegHi = IDEX_REG.SpecialRegHi;
-    EXMEM_REG.SpecialRegLo = IDEX_REG.SpecialRegLo;
+    pipe_to_EXMEM();
 
     // Reset ID/EX
-    // u32 OP;
-    // u32 RSDATA;
-    // u32 RTDATA;
-    // u32 RD;
-    // u32 EXTENDEDIMM;
-    // u32 FUNCT;
-    // enum Signal RegDst;
-    // enum Signal Jump;
-    // enum Signal Branch;
-    // enum Signal MemRead;
-    // enum Signal MemToReg;
-    // enum Signal ALUOp;
-    // enum Signal MemWrite;
-    // enum Signal ALUSrc;
-    // enum Signal RegWrite;
-    IDEX_REG.OP = 0;
-    IDEX_REG.RSDATA = 0;
-    IDEX_REG.RS = 0;
-    IDEX_REG.RTDATA = 0;
-    IDEX_REG.RT = 0;
-    IDEX_REG.SA = 0;
-    IDEX_REG.RD = 0;
-    IDEX_REG.TARGET = 0;
-    IDEX_REG.EXTENDEDIMM = 0;
-    IDEX_REG.FUNCT = 0;
-    IDEX_REG.PCPLUS4 = 0;
-    IDEX_REG.HI = 0;
-    IDEX_REG.LO = 0;
-    IDEX_REG.RegDst = LOW;
-    IDEX_REG.Jump = LOW;
-    IDEX_REG.Branch = LOW;
-    IDEX_REG.MemRead = LOW;
-    IDEX_REG.MemToReg = LOW;
-    IDEX_REG.ALUOp = LOW;
-    IDEX_REG.MemWrite = LOW;
-    IDEX_REG.ALUSrc = LOW;
-    IDEX_REG.RegWrite = LOW;
-    IDEX_REG.SpecialRegHi = LOW;
-    IDEX_REG.SpecialRegLo = LOW;
+    reset_IDEX_pipeline();
 }
 
 void decode()
@@ -841,42 +871,17 @@ void decode()
 
     // Stalling should be here
     // Pipe everything into IDEX register pipeline
-
-    IDEX_REG.OP = op;
-    IDEX_REG.PCPLUS4 = IFID_REG.PCPLUS4;
-    IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IR)];
-    IDEX_REG.RS = rs(IR);
-    IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IR)];
-    IDEX_REG.RT = rt(IR);
-    IDEX_REG.SA = shamt(IR);
-    IDEX_REG.HI = CURRENT_STATE.HI;
-    IDEX_REG.LO = CURRENT_STATE.LO;
-    IDEX_REG.Jump = CONTROL_UNIT.Jump;
-    IDEX_REG.Branch = CONTROL_UNIT.Branch;
-    IDEX_REG.RegDst = CONTROL_UNIT.RegDst;
-    IDEX_REG.ALUOp = CONTROL_UNIT.ALUOp;
-    IDEX_REG.RegWrite = CONTROL_UNIT.RegWrite;
-    IDEX_REG.ALUSrc = CONTROL_UNIT.ALUSrc;
+    pipe_to_IDEX();
 
     // RESET IFID
-    IFID_REG.IR = 0;
-    IFID_REG.PCPLUS4 = 0;
+    reset_IFID_pipeline();
 
     // RESET CONTROL UNIT
-    CONTROL_UNIT.RegDst = LOW;
-    CONTROL_UNIT.Jump = LOW;
-    CONTROL_UNIT.Branch = LOW;
-    CONTROL_UNIT.MemRead = LOW;
-    CONTROL_UNIT.MemToReg = LOW;
-    CONTROL_UNIT.ALUOp = LOW;
-    CONTROL_UNIT.MemWrite = LOW;
-    CONTROL_UNIT.ALUSrc = LOW;
-    CONTROL_UNIT.RegWrite = LOW;
+    reset_control_unit();
 }
 
 void fetch()
 {
-    printf("Entered Fetch\n");
     u32 IR = instruction_memory(CURRENT_STATE.PC);
     u32 PCPLUS4 = CURRENT_STATE.PC + 4;
 
