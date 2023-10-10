@@ -421,7 +421,6 @@ void writeback()
     }
     else if (MEMWB_REG.SpecialRegHi == HIGH)
     {
-        printf("MTHI @: %u\n", NEXT_STATE.HI);
         NEXT_STATE.HI = ALURESULT;
     }
     else if (MEMWB_REG.SpecialRegLo == HIGH)
@@ -432,7 +431,6 @@ void writeback()
     {
         //write to register
         NEXT_STATE.REGS[RD] = ALURESULT;
-        // printf("writing: %u into %u\n",ALURESULT, RD);
     }
 
     if (MEMWB_REG.Jump == HIGH)
@@ -450,7 +448,6 @@ void writeback()
         NEXT_STATE.PC = CURRENT_STATE.PC + 4;
     }
 
-
     // RESET MEMWB
     reset_MEMWB_pipeline();
 
@@ -460,7 +457,6 @@ void memory()
 {
     if (EXMEM_REG.MemWrite == HIGH)
     {
-        printf("No Mem\n");
         switch(EXMEM_REG.OP)
         {
             case SB:
@@ -499,7 +495,8 @@ void memory()
                 break;
         }
     }
-    printf("Memory down\n");
+
+    // Pipe to MEMWB
     pipe_to_MEMWB();
 
     // Reset EXMEM
@@ -519,15 +516,85 @@ void execute()
     // if using alu (ALUOp=High) then find op from FUNCT
     if (IDEX_REG.ALUOp == HIGH)
     {
-        if (op == SPECIAL) {
-            switch(IDEX_REG.FUNCT)
-            {
+        switch(op)
+        {
+            case XORI:
+                EXMEM_REG.ALURESULT = rs ^ IDEX_REG.EXTENDEDIMM;
+                break;
+            case ANDI:
+                EXMEM_REG.ALURESULT = rs & IDEX_REG.EXTENDEDIMM;
+                break;
+            case SLTIU:
+                EXMEM_REG.ALURESULT = (rs - IDEX_REG.EXTENDEDIMM) < IDEX_REG.EXTENDEDIMM ? 1 : 0;
+                break;
+            case SLTI:
+                EXMEM_REG.ALURESULT = ((i32) rs - (i32) IDEX_REG.EXTENDEDIMM) < (i32) IDEX_REG.EXTENDEDIMM ? 1 : 0;
+                break;
+            case LUI:
+                EXMEM_REG.ALURESULT = ALUDATA2 << 16;
+                break;
+            case ORI:
+                EXMEM_REG.ALURESULT = ALUDATA2 & 0xFFFF | ALUDATA1;
+                break;
+            case ADDI:
+                EXMEM_REG.ALURESULT = (i32) ALUDATA1 + (i32) ALUDATA2;
+                break;
+            case ADDIU:
+                EXMEM_REG.ALURESULT = ALUDATA1 + ALUDATA2;
+                break;
+            case BNE:
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
+                // Built in GATE
+                EXMEM_REG.BranchGate = (ALUDATA1 != ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                break;
+            case BEQ:
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
+                // Built in GATE
+                EXMEM_REG.BranchGate = (ALUDATA1 == ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                break;
+            case BLEZ:
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                EXMEM_REG.BranchGate = (((rs >> 31) == 1) || (rs == 0)) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                break;
+            case BGTZ:
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                EXMEM_REG.BranchGate = (((rs >> 31) == 0) && (rs != 0)) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                break;
+            case SPECIAL:
+                switch(IDEX_REG.FUNCT)
+                {
+                case MULT:
+                    {
+                    int64_t multiplied = (i32) rs * (i32) rt;
+                    EXMEM_REG.ALURESULT = (multiplied >> 32) & 0xffffffff;
+                    EXMEM_REG.ALURESULT2 = multiplied & 0xffffffff;
+                    }
+                    break;
+                case MULTU:
+                    {
+                    uint64_t multiplied = (uint64_t) rs * (uint64_t) rt;
+                    EXMEM_REG.ALURESULT = (multiplied >> 32) & 0xffffffff;
+                    EXMEM_REG.ALURESULT2 = multiplied & 0xffffffff;
+                    }
+                    break;
+                case DIV:
+                    if (rt != 0)
+                    {
+                    EXMEM_REG.ALURESULT = (i32) rs % (i32) rt;
+                    EXMEM_REG.ALURESULT2 = (i32) rs / (i32) rt;
+                    }
+                    break;
+                case DIVU:
+                    if (rt != 0)
+                    {
+                    EXMEM_REG.ALURESULT = rs % rt;
+                    EXMEM_REG.ALURESULT2 = rs / rt;
+                    }
+                    break;
                 case SLL:
-                    // NEXT_STATE.REGS[rd(bits)] = CURRENT_STATE.REGS[rt(bits)] << sa(bits);
                     EXMEM_REG.ALURESULT = rt << IDEX_REG.SA;
                     break;
                 case SRL:
-                    // NEXT_STATE.REGS[rd(bits)] = get_bits_between(CURRENT_STATE.REGS[rt(bits)] >> sa(bits), 0, 32-sa(bits))
                     EXMEM_REG.ALURESULT = get_bits_between(rt >> IDEX_REG.SA, 0, 32 - IDEX_REG.SA);
                     break;
                 case SRA:
@@ -569,40 +636,11 @@ void execute()
                 case SLTU:
                     EXMEM_REG.ALURESULT = IDEX_REG.RSDATA < IDEX_REG.RTDATA ? 1 : 0;
                     break;
-                case MULT:
-                    {
-                    int64_t multiplied = (i32) rs * (i32) rt;
-                    EXMEM_REG.ALURESULT = (multiplied >> 32) & 0xffffffff;
-                    EXMEM_REG.ALURESULT2 = multiplied & 0xffffffff;
-                    }
-                    break;
-                case MULTU:
-                    {
-                    uint64_t multiplied = (uint64_t) rs * (uint64_t) rt;
-                    EXMEM_REG.ALURESULT = (multiplied >> 32) & 0xffffffff;
-                    EXMEM_REG.ALURESULT2 = multiplied & 0xffffffff;
-                    }
-                    break;
-                case DIV:
-                    if (rt != 0)
-                    {
-                    EXMEM_REG.ALURESULT = (i32) rs % (i32) rt;
-                    EXMEM_REG.ALURESULT2 = (i32) rs / (i32) rt;
-                    }
-                    break;
-                case DIVU:
-                    if (rt != 0)
-                    {
-                    EXMEM_REG.ALURESULT = rs % rt;
-                    EXMEM_REG.ALURESULT2 = rs / rt;
-                    }
-                    break;
                 case MFLO:
                     EXMEM_REG.ALURESULT = IDEX_REG.LO;
                     break;
                 case MFHI:
                     EXMEM_REG.ALURESULT = IDEX_REG.HI;
-                    printf("MFHI CONTENT = %u\n", EXMEM_REG.ALURESULT);
                     break;
                 case MTLO:
                     EXMEM_REG.ALURESULT2 = IDEX_REG.RSDATA;
@@ -615,81 +653,31 @@ void execute()
                     break;
                 case SYSCALL:
                     break;
-            }
-        } else {
-            switch (op)
-            {
-                case SW:
-                case LB:
-                    break;
-                case XORI:
-                    EXMEM_REG.ALURESULT = rs ^ IDEX_REG.EXTENDEDIMM;
-                    break;
-                case ANDI:
-                    EXMEM_REG.ALURESULT = rs & IDEX_REG.EXTENDEDIMM;
-                    break;
-                case SLTIU:
-                    EXMEM_REG.ALURESULT = (rs - IDEX_REG.EXTENDEDIMM) < IDEX_REG.EXTENDEDIMM ? 1 : 0;
-                    break;
-                case SLTI:
-                    EXMEM_REG.ALURESULT = ((i32) rs - (i32) IDEX_REG.EXTENDEDIMM) < (i32) IDEX_REG.EXTENDEDIMM ? 1 : 0;
-                    break;
-                case LUI:
-                    EXMEM_REG.ALURESULT = ALUDATA2 << 16;
-                    break;
-                case ORI:
-                    EXMEM_REG.ALURESULT = ALUDATA2 & 0xFFFF | ALUDATA1;
-                    break;
-                case ADDI:
-                    EXMEM_REG.ALURESULT = (i32) ALUDATA1 + (i32) ALUDATA2;
-                    break;
-                case ADDIU:
-                    EXMEM_REG.ALURESULT = ALUDATA1 + ALUDATA2;
-                    break;
-                case BNE:
-                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
-                    printf("BNE %d\n", (ALUDATA1 != ALUDATA2));
-                    // Built in GATE
-                    EXMEM_REG.BranchGate = (ALUDATA1 != ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
-                    break;
-                case BEQ:
-                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
-                    // CURRENT_STATE.REGS[rs(bits)] == CURRENT_STATE.REGS[rt(bits)]
-                    // Built in GATE
-                    EXMEM_REG.BranchGate = (ALUDATA1 == ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
-                    break;
-                case BLEZ:
+                }
+                break;
+            case REGIMM:
+                switch (IDEX_REG.RT)
+                {
+                case BLTZ:
                     EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
-                    EXMEM_REG.BranchGate = (((rs >> 31) == 1) || (rs == 0)) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                    EXMEM_REG.BranchGate = ((rs >> 31) != 0) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                     break;
-                case BGTZ:
+                case BGEZ:
                     EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
-                    EXMEM_REG.BranchGate = (((rs >> 31) == 0) && (rs != 0)) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                    EXMEM_REG.BranchGate = ((rs >> 31) == 0) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                     break;
-                case REGIMM:
-                    switch (IDEX_REG.RT)
-                    {
-                    case BLTZ:
-                        EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
-                        EXMEM_REG.BranchGate = ((rs >> 31) != 0) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
-                        break;
-                    case BGEZ:
-                        EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
-                        EXMEM_REG.BranchGate = ((rs >> 31) == 0) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
-                        break;
-                    case BLTZAL:
-                        EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
-                        EXMEM_REG.JUMPADDRESS  = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
-                        EXMEM_REG.BranchGate = (rs >> 31) != 0 ? HIGH : LOW;
-                        break;
-                    case BGEZAL:
-                        EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
-                        EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
-                        EXMEM_REG.BranchGate = (rs >> 31) == 0 ? HIGH : LOW;
-                        break;
-                    }
+                case BLTZAL:
+                    EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
+                    EXMEM_REG.JUMPADDRESS  = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                    EXMEM_REG.BranchGate = (rs >> 31) != 0 ? HIGH : LOW;
                     break;
-            }
+                case BGEZAL:
+                    EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
+                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                    EXMEM_REG.BranchGate = (rs >> 31) == 0 ? HIGH : LOW;
+                    break;
+                }
+                break;
         }
     }
     else
@@ -714,6 +702,7 @@ void execute()
         }
     }
 
+    // Pipe to EXMEM
     pipe_to_EXMEM();
 
     // Reset ID/EX
@@ -734,32 +723,14 @@ void decode()
 
     switch(op)
     {
-        case JAL:
-            CONTROL_UNIT.RegWrite = HIGH;
-            IDEX_REG.RD = 31;
-        case J: // J-Type
-            printf("Jump\n");
-            CONTROL_UNIT.Jump = HIGH;
-            IDEX_REG.TARGET = target(IR);
-            break;
-        case BLEZ:
-        case BGTZ:
-        case BNE:
-        case BEQ: // I-Type (but branch)
-            CONTROL_UNIT.Branch = HIGH;
-            CONTROL_UNIT.ALUOp = HIGH;
-            IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
-            break;
         case SB:
         case SH:
         case SW:
             IDEX_REG.MemWrite = HIGH;
             CONTROL_UNIT.RegDst = HIGH; //TODO REGDST FOR MUX
             CONTROL_UNIT.ALUOp = HIGH;
-            // CONTROL_UNIT.RegWrite = HIGH;
             CONTROL_UNIT.ALUSrc = HIGH;
             IDEX_REG.RD = rt(IR);
-            printf("CHECK: STORE\n\n");
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
             break;
         case LW:
@@ -785,43 +756,25 @@ void decode()
             printf("CHECK: %u\n", IDEX_REG.RD);
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
             break;
+        case BLEZ:
+        case BGTZ:
+        case BNE:
+        case BEQ: // I-Type (but branch)
+            CONTROL_UNIT.Branch = HIGH;
+            CONTROL_UNIT.ALUOp = HIGH;
+            IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
+            break;
+        case JAL:
+            CONTROL_UNIT.RegWrite = HIGH;
+            IDEX_REG.RD = 31;
+        case J: // J-Type
+            printf("Jump\n");
+            CONTROL_UNIT.Jump = HIGH;
+            IDEX_REG.TARGET = target(IR);
+            break;
         case SPECIAL: // R-Type
             switch(specialOpCode) // This op code needs RegWrite
             {
-                case MULT:
-                case MULTU:
-                case DIV:
-                case DIVU:
-                    CONTROL_UNIT.RegWrite = HIGH;
-                    CONTROL_UNIT.ALUOp = HIGH;
-                    IDEX_REG.SpecialRegHi = HIGH;
-                    IDEX_REG.SpecialRegLo = HIGH;
-                    IDEX_REG.FUNCT = funct(IR);
-                    break;
-                case JR:
-                    CONTROL_UNIT.Jump = HIGH;
-                    IDEX_REG.FUNCT = funct(IR);
-                    break;
-                case MFHI:
-                case MFLO:
-                    CONTROL_UNIT.RegWrite = HIGH;
-                    CONTROL_UNIT.ALUOp = HIGH;
-                    IDEX_REG.RD = rd(IR);
-                    IDEX_REG.FUNCT = funct(IR);
-                    printf("MFHI: %u\n", IDEX_REG.RD);
-                    break;
-                case MTLO:
-                    CONTROL_UNIT.RegWrite = HIGH;
-                    CONTROL_UNIT.ALUOp = HIGH;
-                    IDEX_REG.SpecialRegLo = HIGH;
-                    IDEX_REG.FUNCT = funct(IR);
-                    break;
-                case MTHI:
-                    CONTROL_UNIT.RegWrite = HIGH;
-                    CONTROL_UNIT.ALUOp = HIGH;
-                    IDEX_REG.SpecialRegHi = HIGH;
-                    IDEX_REG.FUNCT = funct(IR);
-                    break;
                 case SLL:
                 case SRL:
                 case SRA:
@@ -844,6 +797,39 @@ void decode()
                     IDEX_REG.RD = rd(IR);
                     IDEX_REG.FUNCT = funct(IR);
                     break;
+                case MULT:
+                case MULTU:
+                case DIV:
+                case DIVU:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.SpecialRegHi = HIGH;
+                    IDEX_REG.SpecialRegLo = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case MFHI:
+                case MFLO:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.RD = rd(IR);
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case MTLO:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.SpecialRegLo = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case MTHI:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    CONTROL_UNIT.ALUOp = HIGH;
+                    IDEX_REG.SpecialRegHi = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case JR:
+                    CONTROL_UNIT.Jump = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    break;
                 case SYSCALL:
                     RUN_BIT = 0;
                     break;
@@ -852,19 +838,15 @@ void decode()
         case REGIMM:
             switch (rt(IR))
             {
+                case BLTZAL:
+                case BGEZAL:
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    IDEX_REG.RD = 31;
                 case BLTZ:
                 case BGEZ:
                     CONTROL_UNIT.Branch = HIGH;
                     CONTROL_UNIT.ALUOp = HIGH;
                     IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
-                    break;
-                case BLTZAL:
-                case BGEZAL:
-                    CONTROL_UNIT.RegWrite = HIGH;
-                    CONTROL_UNIT.Branch = HIGH;
-                    CONTROL_UNIT.ALUOp = HIGH;
-                    IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
-                    IDEX_REG.RD = 31;
                     break;
             }
     }
