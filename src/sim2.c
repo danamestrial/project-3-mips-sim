@@ -358,6 +358,7 @@ void reset_stall_cycle()
 
 struct HAZARD_UNIT
 {
+    int MAIN[34];
     int IDEX[34];
     int EXMEM[34];
     int MEMWB[34];
@@ -378,12 +379,18 @@ struct HAZARD_UNIT HAZARD = {{
     1,1,1,1,1,1,1,1,1,1,
     1,1,1,1,1,1,1,1,1,1,
     1,1,1,1
+},{
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1
 }};
 
 void reset_hazard_unit()
 {
     for (int i = 0; i < 34 ; i++)
     {
+        HAZARD.MAIN[i] = 1;
         HAZARD.IDEX[i] = 1;
         HAZARD.EXMEM[i] = 1;
         HAZARD.MEMWB[i] = 1;
@@ -450,12 +457,6 @@ void pipe_to_EXMEM()
     EXMEM_REG.SpecialRegHi = IDEX_REG.SpecialRegHi;
     EXMEM_REG.SpecialRegLo = IDEX_REG.SpecialRegLo;
     EXMEM_REG.Syscall = IDEX_REG.Syscall;
-
-    for (int i = 0; i < 34; i++)
-    {
-        HAZARD.EXMEM[i] = HAZARD.IDEX[i];
-        HAZARD.IDEX[i] = 1;
-    }
 }
 
 void pipe_to_MEMWB()
@@ -472,11 +473,6 @@ void pipe_to_MEMWB()
     MEMWB_REG.SpecialRegHi = EXMEM_REG.SpecialRegHi;
     MEMWB_REG.SpecialRegLo = EXMEM_REG.SpecialRegLo;
     MEMWB_REG.Syscall = EXMEM_REG.Syscall;
-
-    for (int i = 0; i < 34; i++)
-    {
-        HAZARD.MEMWB[i] = HAZARD.EXMEM[i];
-    }
 }
 
 ////////////////////////////
@@ -484,6 +480,25 @@ void pipe_to_MEMWB()
 //    HAZARD FUNCTIONS    //
 //                        //
 ////////////////////////////
+
+void skew_hazard()
+{
+    for (int i = 0; i < 34; i++)
+    {
+        HAZARD.MEMWB[i] = HAZARD.EXMEM[i];
+    }
+
+    for (int i = 0; i < 34; i++)
+    {
+        HAZARD.EXMEM[i] = HAZARD.IDEX[i];
+    }
+
+    for (int i = 0; i < 34; i++)
+    {
+        HAZARD.IDEX[i] = HAZARD.MAIN[i];
+        HAZARD.MAIN[i] = 1;
+    }
+}
 
 int check_single(u32 rs)
 {
@@ -663,21 +678,14 @@ void writeback()
     {
         CURRENT_STATE.HI = ALURESULT;
         CURRENT_STATE.LO = ALURESULT2;
-
-        HAZARD.IDEX[33] = 1;
-        HAZARD.IDEX[32] = 1;
     }
     else if (MEMWB_REG.SpecialRegHi == HIGH)
     {
         CURRENT_STATE.HI = ALURESULT;
-
-        HAZARD.IDEX[33] = 1;
     }
     else if (MEMWB_REG.SpecialRegLo == HIGH)
     {
         CURRENT_STATE.LO = ALURESULT2;
-
-        HAZARD.IDEX[32] = 1;
     }
     else if (MEMWB_REG.RegWrite == HIGH)
     {
@@ -685,8 +693,6 @@ void writeback()
         CURRENT_STATE.REGS[RD] = ALURESULT;
 
         DEBUG_PRINT("Wrote %u to REG[%u]\n", ALURESULT, RD);
-
-        HAZARD.IDEX[RD] = 1;
     }
 
     if (MEMWB_REG.Jump == HIGH)
@@ -751,7 +757,6 @@ void memory()
                 break;
         }
 
-        HAZARD.IDEX[EXMEM_REG.RS] = 1;
     }
 
     // Pipe to MEMWB
@@ -1018,7 +1023,7 @@ void decode()
             DEBUG_PRINT("ADDIU: %u\n", IDEX_REG.RD);
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
 
-            HAZARD.IDEX[IDEX_REG.RD] = 0;
+            HAZARD.MAIN[IDEX_REG.RD] = 0;
             break;
         case BLEZ:
         case BGTZ:
@@ -1032,7 +1037,7 @@ void decode()
             CONTROL_UNIT.RegWrite = HIGH;
             IDEX_REG.RD = 31;
 
-            HAZARD.IDEX[IDEX_REG.RD] = 0;
+            HAZARD.MAIN[IDEX_REG.RD] = 0;
         case J: // J-Type
             DEBUG_PRINT("Jump\n");
             CONTROL_UNIT.Jump = HIGH;
@@ -1064,7 +1069,7 @@ void decode()
                     IDEX_REG.FUNCT = funct(IR);
                     DEBUG_PRINT("ADDU: %u\n", IDEX_REG.RD);
 
-                    HAZARD.IDEX[IDEX_REG.RD] = 0;
+                    HAZARD.MAIN[IDEX_REG.RD] = 0;
                     break;
                 case MULT:
                 case MULTU:
@@ -1076,8 +1081,8 @@ void decode()
                     IDEX_REG.SpecialRegLo = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
 
-                    HAZARD.IDEX[33] = 0;
-                    HAZARD.IDEX[32] = 0;
+                    HAZARD.MAIN[33] = 0;
+                    HAZARD.MAIN[32] = 0;
                     break;
                 case MFHI:
                 case MFLO:
@@ -1086,7 +1091,7 @@ void decode()
                     IDEX_REG.RD = rd(IR);
                     IDEX_REG.FUNCT = funct(IR);
 
-                    HAZARD.IDEX[IDEX_REG.RD] = 0;
+                    HAZARD.MAIN[IDEX_REG.RD] = 0;
                     break;
                 case MTLO:
                     CONTROL_UNIT.RegWrite = HIGH;
@@ -1094,7 +1099,7 @@ void decode()
                     IDEX_REG.SpecialRegLo = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
 
-                    HAZARD.IDEX[32] = 0;
+                    HAZARD.MAIN[32] = 0;
                     break;
                 case MTHI:
                     CONTROL_UNIT.RegWrite = HIGH;
@@ -1102,7 +1107,7 @@ void decode()
                     IDEX_REG.SpecialRegHi = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
 
-                    HAZARD.IDEX[33] = 0;
+                    HAZARD.MAIN[33] = 0;
                     break;
                 case JR:
                     CONTROL_UNIT.Jump = HIGH;
@@ -1122,7 +1127,7 @@ void decode()
                     CONTROL_UNIT.RegWrite = HIGH;
                     IDEX_REG.RD = 31;
 
-                    HAZARD.IDEX[IDEX_REG.RD] = 0;
+                    HAZARD.MAIN[IDEX_REG.RD] = 0;
                 case BLTZ:
                 case BGEZ:
                     CONTROL_UNIT.Branch = HIGH;
@@ -1167,6 +1172,7 @@ NORMAL INSTRUCTIONS SWITCH CASE HERE ( process_instruction() )
 
 void process_instruction()
 {
+    skew_hazard();
 
     writeback();
 
