@@ -326,6 +326,14 @@ void reset_control_unit()
     CONTROL_UNIT.RegWrite = LOW;
 }
 
+struct STATE
+{
+    enum Signal Fetch;
+    enum Signal Decode;
+};
+
+struct STATE STATE = {LOW, LOW};
+
 u32 get_bits_between(u32 bits, int start, int size)
 {
     return (bits >> start) & MASK(size);
@@ -416,36 +424,36 @@ void writeback()
 
     if (MEMWB_REG.SpecialRegHi == HIGH && MEMWB_REG.SpecialRegLo == HIGH)
     {
-        NEXT_STATE.HI = ALURESULT;
-        NEXT_STATE.LO = ALURESULT2;
+        CURRENT_STATE.HI = ALURESULT;
+        CURRENT_STATE.LO = ALURESULT2;
     }
     else if (MEMWB_REG.SpecialRegHi == HIGH)
     {
-        NEXT_STATE.HI = ALURESULT;
+        CURRENT_STATE.HI = ALURESULT;
     }
     else if (MEMWB_REG.SpecialRegLo == HIGH)
     {
-        NEXT_STATE.LO = ALURESULT2;
+        CURRENT_STATE.LO = ALURESULT2;
     }
     else if (MEMWB_REG.RegWrite == HIGH)
     {
         //write to register
-        NEXT_STATE.REGS[RD] = ALURESULT;
+        CURRENT_STATE.REGS[RD] = ALURESULT;
     }
 
     if (MEMWB_REG.Jump == HIGH)
     {
         printf("jumped\n");
-        NEXT_STATE.PC = MEMWB_REG.JUMPADDRESS;
+        CURRENT_STATE.PC = MEMWB_REG.JUMPADDRESS;
     }
     else if (MEMWB_REG.BranchGate == HIGH)
     {
         printf("branched\n");
-        NEXT_STATE.PC = MEMWB_REG.JUMPADDRESS;
+        CURRENT_STATE.PC = MEMWB_REG.JUMPADDRESS;
     }
     else
     {
-        NEXT_STATE.PC = CURRENT_STATE.PC + 4;
+        CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
     }
 
     // RESET MEMWB
@@ -553,11 +561,11 @@ void execute()
                 EXMEM_REG.BranchGate = (ALUDATA1 == ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                 break;
             case BLEZ:
-                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
                 EXMEM_REG.BranchGate = (((rs >> 31) == 1) || (rs == 0)) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                 break;
             case BGTZ:
-                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
                 EXMEM_REG.BranchGate = (((rs >> 31) == 0) && (rs != 0)) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                 break;
             case SPECIAL:
@@ -659,11 +667,11 @@ void execute()
                 switch (IDEX_REG.RT)
                 {
                 case BLTZ:
-                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + ((IDEX_REG.EXTENDEDIMM << 2));
                     EXMEM_REG.BranchGate = ((rs >> 31) != 0) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                     break;
                 case BGEZ:
-                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + ((IDEX_REG.EXTENDEDIMM << 2));
                     EXMEM_REG.BranchGate = ((rs >> 31) == 0) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
                     break;
                 case BLTZAL:
