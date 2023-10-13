@@ -186,9 +186,10 @@ struct IDEX_PILELINE_REG
     enum Signal RegWrite;
     enum Signal SpecialRegHi;
     enum Signal SpecialRegLo;
+    enum Signal Syscall;
 };
 
-struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct IDEX_PILELINE_REG IDEX_REG = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 void reset_IDEX_pipeline()
 {
@@ -216,6 +217,7 @@ void reset_IDEX_pipeline()
     IDEX_REG.RegWrite = LOW;
     IDEX_REG.SpecialRegHi = LOW;
     IDEX_REG.SpecialRegLo = LOW;
+    IDEX_REG.Syscall = LOW;
 }
 
 struct EXMEM_PIPELINE_REG
@@ -229,6 +231,8 @@ struct EXMEM_PIPELINE_REG
     u32 RTDATA;
     u32 OP;
     u32 RD;
+    u32 RS;
+    u32 RT;
     // no ALUOp & ALUSrc
     enum Signal RegDst;
     enum Signal Jump;
@@ -239,9 +243,10 @@ struct EXMEM_PIPELINE_REG
     enum Signal RegWrite;
     enum Signal SpecialRegHi;
     enum Signal SpecialRegLo;
+    enum Signal Syscall;
 };
 
-struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct EXMEM_PIPELINE_REG EXMEM_REG = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 void reset_EXMEM_pipeline()
 {
@@ -253,6 +258,8 @@ void reset_EXMEM_pipeline()
     EXMEM_REG.RSDATA = 0;
     EXMEM_REG.RTDATA = 0;
     EXMEM_REG.RD = 0;
+    EXMEM_REG.RS = 0;
+    EXMEM_REG.RT = 0;
     EXMEM_REG.RegDst = LOW;
     EXMEM_REG.Jump = LOW;
     EXMEM_REG.BranchGate = LOW;
@@ -262,6 +269,7 @@ void reset_EXMEM_pipeline()
     EXMEM_REG.RegWrite = LOW;
     EXMEM_REG.SpecialRegHi = LOW;
     EXMEM_REG.SpecialRegLo = LOW;
+    EXMEM_REG.Syscall = LOW;
 }
 
 struct MEMWB_PIPELINE_REG
@@ -279,9 +287,10 @@ struct MEMWB_PIPELINE_REG
     enum Signal RegWrite;
     enum Signal SpecialRegHi;
     enum Signal SpecialRegLo;
+    enum Signal Syscall;
 };
 
-struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
+struct MEMWB_PIPELINE_REG MEMWB_REG = {0, 0, 0, 0, LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 
 void reset_MEMWB_pipeline()
 {
@@ -296,6 +305,7 @@ void reset_MEMWB_pipeline()
     MEMWB_REG.RegWrite = LOW;
     MEMWB_REG.SpecialRegHi = LOW;
     MEMWB_REG.SpecialRegLo = LOW;
+    MEMWB_REG.Syscall = LOW;
 }
 
 struct CONTROL_UNIT
@@ -326,13 +336,39 @@ void reset_control_unit()
     CONTROL_UNIT.RegWrite = LOW;
 }
 
-struct STATE
+struct STALL_CYCLE
 {
-    enum Signal Fetch;
-    enum Signal Decode;
+    int Fetch;
+    int Decode;
 };
 
-struct STATE STATE = {LOW, LOW};
+struct STALL_CYCLE STALL = {0, 0};
+
+void reset_stall_cycle()
+{
+    STALL.Decode = 0;
+    STALL.Fetch = 0;
+}
+
+struct HAZARD_UNIT
+{
+    int register_check[34];
+};
+
+struct HAZARD_UNIT HAZARD = {{
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1
+}};
+
+void reset_hazard_unit()
+{
+    for (int i = 0; i < 34 ; i++)
+    {
+        HAZARD.register_check[i] = 1;
+    }
+};
 
 u32 get_bits_between(u32 bits, int start, int size)
 {
@@ -393,6 +429,7 @@ void pipe_to_EXMEM()
     EXMEM_REG.RegWrite = IDEX_REG.RegWrite;
     EXMEM_REG.SpecialRegHi = IDEX_REG.SpecialRegHi;
     EXMEM_REG.SpecialRegLo = IDEX_REG.SpecialRegLo;
+    EXMEM_REG.Syscall = IDEX_REG.Syscall;
 }
 
 void pipe_to_MEMWB()
@@ -408,7 +445,172 @@ void pipe_to_MEMWB()
     MEMWB_REG.MemToReg = EXMEM_REG.MemToReg;
     MEMWB_REG.SpecialRegHi = EXMEM_REG.SpecialRegHi;
     MEMWB_REG.SpecialRegLo = EXMEM_REG.SpecialRegLo;
+    MEMWB_REG.Syscall = EXMEM_REG.Syscall;
 }
+
+////////////////////////////
+//                        //
+//    HAZARD FUNCTIONS    //
+//                        //
+////////////////////////////
+
+
+void check_dependency(u32 IR)
+{
+    if (STALL.Decode > 0) { return; }
+
+    switch(op(IR))
+    {
+        case SB:
+        case SH:
+        case SW:
+            if (HAZARD.register_check[rs(IR)] == 0 || HAZARD.register_check[rt(IR)] == 0)
+            {
+                STALL.Decode = 3;
+                STALL.Fetch = 3;
+            }
+            break;
+        case LW:
+        case LB:
+        case LH:
+        case LBU:
+        case LHU:
+            if (HAZARD.register_check[rs(IR)] == 0)
+            {
+                STALL.Decode = 3;
+                STALL.Fetch = 3;
+            }
+            break;
+        case XORI:
+        case ANDI:
+        case SLTIU:
+        case SLTI:
+        case LUI:
+        case ORI:
+        case ADDI: // I-Type
+        case ADDIU:
+            // IDEX_REG.RD = rt(IR);
+            if (HAZARD.register_check[rs(IR)] == 0)
+            {
+                STALL.Decode = 3;
+                STALL.Fetch = 3;
+            }
+            break;
+        case BLEZ:
+        case BGTZ:
+            if (HAZARD.register_check[rs(IR)] == 0)
+            {
+                STALL.Decode = 3;
+                STALL.Fetch = 3;
+            } else {
+                STALL.Fetch = 4;
+            }
+            break;
+        case BNE:
+        case BEQ:
+            if (HAZARD.register_check[rs(IR)] == 0 || HAZARD.register_check[rt(IR)] == 0)
+            {
+                STALL.Decode = 3;
+                STALL.Fetch = 3;
+            } else {
+                STALL.Fetch = 4;
+            }
+            break;
+        case JAL:
+        case J:
+            STALL.Fetch = 4;
+            break;
+        case SPECIAL: // R-Type
+            switch(funct(IR)) // This op code needs RegWrite
+            {
+                case SLL:
+                case SRL:
+                case SRA:
+                    if (HAZARD.register_check[rt(IR)] == 0)
+                    {
+                        STALL.Decode = 3;
+                        STALL.Fetch = 3;
+                    }
+                    break;
+                case SLLV:
+                case SRLV:
+                case SRAV:
+                case ADD:
+                case SUB:
+                case SUBU:
+                case AND:
+                case OR:
+                case XOR:
+                case NOR:
+                case SLT:
+                case SLTU:
+                case ADDU:
+                    // IDEX_REG.RD = rd(IR);
+                    if (HAZARD.register_check[rs(IR)] == 0 || HAZARD.register_check[rt(IR)] == 0)
+                    {
+                        STALL.Decode = 3;
+                        STALL.Fetch = 3;
+                    }
+                    break;
+                case MULT:
+                case MULTU:
+                case DIV:
+                case DIVU:
+                    if (HAZARD.register_check[rs(IR)] == 0 || HAZARD.register_check[rt(IR)] == 0)
+                    {
+                        STALL.Decode = 3;
+                        STALL.Fetch = 3;
+                    }
+                    break;
+                case MFHI:
+                    // index 33 is HI
+                    if (HAZARD.register_check[33] == 0) {
+                        STALL.Decode = 2;
+                        STALL.Fetch = 2;
+                    }
+                    break;
+                case MFLO:
+                    // index 32 is LO
+                    if (HAZARD.register_check[32] == 0) {
+                        STALL.Decode = 2;
+                        STALL.Fetch = 2;
+                    }
+                    break;
+                case MTLO:
+                case MTHI:
+                    // Uses rs to store to HI/LO
+                    if (HAZARD.register_check[rs(IR)] == 0)
+                    {
+                        STALL.Decode = 3;
+                        STALL.Fetch = 3;
+                    }
+                    break;
+                case JR:
+                    STALL.Fetch = 4;
+                    break;
+                case SYSCALL:
+                    break;
+            }
+            break;
+        case REGIMM:
+            switch (rt(IR))
+            {
+                case BLTZAL:
+                case BGEZAL:
+                case BLTZ:
+                case BGEZ:
+                    if (HAZARD.register_check[rs(IR)] == 0)
+                    {
+                        STALL.Decode = 3;
+                        STALL.Fetch = 3;
+                    } else {
+                        STALL.Fetch = 4;
+                    }
+                    break;
+            }
+    }
+}
+
 
 //////////////////////////
 //                      //
@@ -422,23 +624,36 @@ void writeback()
     u32 ALURESULT = MEMWB_REG.ALURESULT;
     u32 ALURESULT2 = MEMWB_REG.ALURESULT2;
 
+    if (MEMWB_REG.Syscall == HIGH) { RUN_BIT = FALSE; return;}
+
     if (MEMWB_REG.SpecialRegHi == HIGH && MEMWB_REG.SpecialRegLo == HIGH)
     {
         CURRENT_STATE.HI = ALURESULT;
         CURRENT_STATE.LO = ALURESULT2;
+
+        HAZARD.register_check[33] = 1;
+        HAZARD.register_check[32] = 1;
     }
     else if (MEMWB_REG.SpecialRegHi == HIGH)
     {
         CURRENT_STATE.HI = ALURESULT;
+
+        HAZARD.register_check[33] = 1;
     }
     else if (MEMWB_REG.SpecialRegLo == HIGH)
     {
         CURRENT_STATE.LO = ALURESULT2;
+
+        HAZARD.register_check[32] = 1;
     }
     else if (MEMWB_REG.RegWrite == HIGH)
     {
         //write to register
         CURRENT_STATE.REGS[RD] = ALURESULT;
+
+        printf("Wrote %u to REG[%u]\n", ALURESULT, RD);
+
+        HAZARD.register_check[RD] = 1;
     }
 
     if (MEMWB_REG.Jump == HIGH)
@@ -453,7 +668,7 @@ void writeback()
     }
     else
     {
-        CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
+        // CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
     }
 
     // RESET MEMWB
@@ -502,6 +717,8 @@ void memory()
                 EXMEM_REG.ALURESULT = mem_read_32(EXMEM_REG.EXTENDEDIMM + EXMEM_REG.RSDATA);
                 break;
         }
+
+        HAZARD.register_check[EXMEM_REG.RS] = 1;
     }
 
     // Pipe to MEMWB
@@ -725,6 +942,12 @@ void decode()
 
     u32 op = op(IR);
 
+    if (IR == 0) { return; }
+    check_dependency(IR);
+    if (STALL.Decode > 0) { printf("STALLING in DECODE [%d]\n", STALL.Decode); STALL.Decode--; return; }
+
+    printf("DECODE RAN\n");
+
     // If R-Type RegDst set to High, ALUOp to High, RegWrite to High
     // This simulate opcode into control unit
     uint8_t specialOpCode = (uint8_t) (IR & 0x3F);
@@ -738,7 +961,6 @@ void decode()
             CONTROL_UNIT.RegDst = HIGH; //TODO REGDST FOR MUX
             CONTROL_UNIT.ALUOp = HIGH;
             CONTROL_UNIT.ALUSrc = HIGH;
-            IDEX_REG.RD = rt(IR);
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
             break;
         case LW:
@@ -755,14 +977,15 @@ void decode()
         case ORI:
         case ADDI: // I-Type
         case ADDIU:
-            printf("I-Type\n");
             CONTROL_UNIT.RegDst = HIGH; //TODO REGDST FOR MUX
             CONTROL_UNIT.ALUOp = HIGH;
             CONTROL_UNIT.RegWrite = HIGH;
             CONTROL_UNIT.ALUSrc = HIGH;
             IDEX_REG.RD = rt(IR);
-            printf("CHECK: %u\n", IDEX_REG.RD);
+            printf("ADDIU: %u\n", IDEX_REG.RD);
             IDEX_REG.EXTENDEDIMM = convert_to_32(imm(IR), 16);
+
+            HAZARD.register_check[IDEX_REG.RD] = 0;
             break;
         case BLEZ:
         case BGTZ:
@@ -775,6 +998,8 @@ void decode()
         case JAL:
             CONTROL_UNIT.RegWrite = HIGH;
             IDEX_REG.RD = 31;
+
+            HAZARD.register_check[IDEX_REG.RD] = 0;
         case J: // J-Type
             printf("Jump\n");
             CONTROL_UNIT.Jump = HIGH;
@@ -804,6 +1029,9 @@ void decode()
                     CONTROL_UNIT.RegWrite = HIGH;
                     IDEX_REG.RD = rd(IR);
                     IDEX_REG.FUNCT = funct(IR);
+                    printf("ADDU: %u\n", IDEX_REG.RD);
+
+                    HAZARD.register_check[IDEX_REG.RD] = 0;
                     break;
                 case MULT:
                 case MULTU:
@@ -814,6 +1042,9 @@ void decode()
                     IDEX_REG.SpecialRegHi = HIGH;
                     IDEX_REG.SpecialRegLo = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
+
+                    HAZARD.register_check[33] = 0;
+                    HAZARD.register_check[32] = 0;
                     break;
                 case MFHI:
                 case MFLO:
@@ -821,25 +1052,32 @@ void decode()
                     CONTROL_UNIT.ALUOp = HIGH;
                     IDEX_REG.RD = rd(IR);
                     IDEX_REG.FUNCT = funct(IR);
+
+                    HAZARD.register_check[IDEX_REG.RD] = 0;
                     break;
                 case MTLO:
                     CONTROL_UNIT.RegWrite = HIGH;
                     CONTROL_UNIT.ALUOp = HIGH;
                     IDEX_REG.SpecialRegLo = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
+
+                    HAZARD.register_check[32] = 0;
                     break;
                 case MTHI:
                     CONTROL_UNIT.RegWrite = HIGH;
                     CONTROL_UNIT.ALUOp = HIGH;
                     IDEX_REG.SpecialRegHi = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
+
+                    HAZARD.register_check[33] = 0;
                     break;
                 case JR:
                     CONTROL_UNIT.Jump = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
                     break;
                 case SYSCALL:
-                    RUN_BIT = 0;
+                    printf("GOT SYSCALL\n");
+                    IDEX_REG.Syscall = HIGH;
                     break;
             }
             break;
@@ -850,6 +1088,8 @@ void decode()
                 case BGEZAL:
                     CONTROL_UNIT.RegWrite = HIGH;
                     IDEX_REG.RD = 31;
+
+                    HAZARD.register_check[IDEX_REG.RD] = 0;
                 case BLTZ:
                 case BGEZ:
                     CONTROL_UNIT.Branch = HIGH;
@@ -872,11 +1112,18 @@ void decode()
 
 void fetch()
 {
+    if (STALL.Fetch > 0) { printf("STALLING in FETCH [%d]\n", STALL.Fetch); STALL.Fetch--; return; }
+
+    printf("FETCHED \n");
+
     u32 IR = instruction_memory(CURRENT_STATE.PC);
     u32 PCPLUS4 = CURRENT_STATE.PC + 4;
 
+    if (IR == 0) { return; }
+
     IFID_REG.IR = IR;
     IFID_REG.PCPLUS4 = PCPLUS4;
+    CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
 }
 
 /*
@@ -887,20 +1134,42 @@ NORMAL INSTRUCTIONS SWITCH CASE HERE ( process_instruction() )
 
 void process_instruction()
 {
-    fetch();
-    printf("f\n");
-
-    decode();
-    printf("d\n");
-
-    execute();
-    printf("e\n");
-
-    memory();
-    printf("m\b");
 
     writeback();
-    printf("wb\n");
+
+    memory();
+
+    execute();
+
+    decode();
+
+    fetch();
+
+    if (RUN_BIT == FALSE)
+    {
+        reset_control_unit();
+        reset_hazard_unit();
+        reset_stall_cycle();
+        reset_IFID_pipeline();
+        reset_IDEX_pipeline();
+        reset_EXMEM_pipeline();
+        reset_MEMWB_pipeline();
+    }
+
+    // fetch();
+    // printf("f\n");
+
+    // decode();
+    // printf("d\n");
+
+    // execute();
+    // printf("e\n");
+
+    // memory();
+    // printf("m\b");
+
+    // writeback();
+    // printf("wb\n");
 
     /* execute one instruction here. You should use CURRENT_STATE and modify
      * values in NEXT_STATE. You can call mem_read_32() and mem_write_32() to
