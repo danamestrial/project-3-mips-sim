@@ -833,19 +833,19 @@ void forward(u32 IR)
         case BGTZ:
             if (forward_single_rs(rs))
             {
-                STALL.Fetch = 4;
+                // STALL.Fetch = 4;
             }
             break;
         case BNE:
         case BEQ:
             if (forward_double(rs, rt))
             {
-                STALL.Fetch = 4;
+                // STALL.Fetch = 4;
             }
             break;
         case JAL:
         case J:
-            STALL.Fetch = 4;
+            // STALL.Fetch = 4;
             break;
         case SPECIAL: // R-Type
             switch(funct(IR)) // This op code needs RegWrite
@@ -890,7 +890,7 @@ void forward(u32 IR)
                     forward_single_rs(rs);
                     break;
                 case JR:
-                    STALL.Fetch = 4;
+                    // STALL.Fetch = 4;
                     break;
                 case SYSCALL:
                     break;
@@ -905,7 +905,7 @@ void forward(u32 IR)
                 case BGEZ:
                     if (forward_single_rs(rs))
                     {
-                        STALL.Fetch = 4;
+                        // STALL.Fetch = 4;
                     }
                     break;
             }
@@ -948,20 +948,20 @@ void writeback()
         DEBUG_PRINT("Wrote %u to REG[%u]\n", ALURESULT, RD);
     }
 
-    if (MEMWB_REG.Jump == HIGH)
-    {
-        DEBUG_PRINT("jumped\n");
-        CURRENT_STATE.PC = MEMWB_REG.JUMPADDRESS;
-    }
-    else if (MEMWB_REG.BranchGate == HIGH)
-    {
-        DEBUG_PRINT("branched\n");
-        CURRENT_STATE.PC = MEMWB_REG.JUMPADDRESS;
-    }
-    else
-    {
-        // CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
-    }
+    // if (MEMWB_REG.Jump == HIGH)
+    // {
+    //     DEBUG_PRINT("jumped\n");
+    //     CURRENT_STATE.PC = MEMWB_REG.JUMPADDRESS;
+    // }
+    // else if (MEMWB_REG.BranchGate == HIGH)
+    // {
+    //     DEBUG_PRINT("branched\n");
+    //     CURRENT_STATE.PC = MEMWB_REG.JUMPADDRESS;
+    // }
+    // else
+    // {
+    //     // CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
+    // }
 
     // RESET MEMWB
     reset_MEMWB_pipeline();
@@ -1217,12 +1217,12 @@ void execute()
                     break;
                 case BLTZAL:
                     EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
-                    EXMEM_REG.JUMPADDRESS  = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                    EXMEM_REG.JUMPADDRESS  = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2));
                     EXMEM_REG.BranchGate = (rs >> 31) != 0 ? HIGH : LOW;
                     break;
                 case BGEZAL:
                     EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
-                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2) - 4);
+                    EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4) + ((IDEX_REG.EXTENDEDIMM << 2));
                     EXMEM_REG.BranchGate = (rs >> 31) == 0 ? HIGH : LOW;
                     break;
                 }
@@ -1251,6 +1251,34 @@ void execute()
                 }
             }
         }
+    }
+
+
+    if (IDEX_REG.Jump == HIGH)
+    {
+        DEBUG_PRINT("jumped\n");
+        CURRENT_STATE.PC = EXMEM_REG.JUMPADDRESS;
+        // SQUASH Decode and Fetch
+        // Reset Decode and Fetch
+        // RESET IFID
+        reset_IFID_pipeline();
+
+        // RESET CONTROL UNIT
+        reset_control_unit();
+    }
+    else if (EXMEM_REG.BranchGate == HIGH)
+    {
+        DEBUG_PRINT("branched\n");
+        CURRENT_STATE.PC = EXMEM_REG.JUMPADDRESS;
+        // RESET IFID
+        reset_IFID_pipeline();
+
+        // RESET CONTROL UNIT
+        reset_control_unit();
+    }
+    else
+    {
+        // CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
     }
 
     switch(op)
