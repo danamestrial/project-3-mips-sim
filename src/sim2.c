@@ -397,6 +397,26 @@ void reset_hazard_unit()
     }
 };
 
+struct FORWARDING_UNIT
+{
+    u32 DATA[34];
+};
+
+struct FORWARDING_UNIT FORWARD = {{
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0
+}};
+
+void reset_forwarding_unit()
+{
+    for (int i = 0; i < 34 ; i++)
+    {
+        FORWARD.DATA[i] = 0;
+    }
+};
+
 u32 get_bits_between(u32 bits, int start, int size)
 {
     return (bits >> start) & MASK(size);
@@ -426,13 +446,13 @@ void pipe_to_IDEX()
 {
     IDEX_REG.OP = op(IFID_REG.IR);
     IDEX_REG.PCPLUS4 = IFID_REG.PCPLUS4;
-    IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IFID_REG.IR)];
     IDEX_REG.RS = rs(IFID_REG.IR);
-    IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IFID_REG.IR)];
     IDEX_REG.RT = rt(IFID_REG.IR);
+    // IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IFID_REG.IR)];
+    // IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IFID_REG.IR)];
     IDEX_REG.SA = shamt(IFID_REG.IR);
-    IDEX_REG.HI = CURRENT_STATE.HI;
-    IDEX_REG.LO = CURRENT_STATE.LO;
+    // IDEX_REG.HI = CURRENT_STATE.HI;
+    // IDEX_REG.LO = CURRENT_STATE.LO;
     IDEX_REG.Jump = CONTROL_UNIT.Jump;
     IDEX_REG.Branch = CONTROL_UNIT.Branch;
     IDEX_REG.RegDst = CONTROL_UNIT.RegDst;
@@ -660,6 +680,239 @@ void check_dependency(u32 IR)
 }
 
 
+int forward_single_rs(u32 rs)
+{
+    // if (HAZARD.IDEX[rs] == 0) {
+    //     STALL.Decode = 3;
+    //     STALL.Fetch = 3;
+    //     return FALSE;
+    // }
+    // else if (HAZARD.EXMEM[rs] == 0)
+    // {
+    //     STALL.Decode = 2;
+    //     STALL.Fetch = 2;
+    //     return FALSE;
+    // }
+    // else if (HAZARD.MEMWB[rs] == 0)
+    // {
+    //     STALL.Decode = 1;
+    //     STALL.Fetch = 1;
+    //     return FALSE;
+    // }
+    // return TRUE;
+    if (HAZARD.IDEX[rs] == 0 || HAZARD.EXMEM[rs] == 0 || HAZARD.MEMWB[rs] == 0)
+    {
+        DEBUG_PRINT("Found data to forward at: [%d] with value %d\n", rs, FORWARD.DATA[rs]);
+
+        if (rs == 32)
+        {
+            IDEX_REG.LO = FORWARD.DATA[32];
+        }
+        else if (rs == 33)
+        {
+            IDEX_REG.HI = FORWARD.DATA[33];
+        }
+        else
+        {
+            IDEX_REG.RSDATA = FORWARD.DATA[rs];
+        }
+
+        // return FALSE;
+    }
+    return TRUE;
+}
+
+int forward_single_rt(u32 rt)
+{
+    // if (HAZARD.IDEX[rs] == 0) {
+    //     STALL.Decode = 3;
+    //     STALL.Fetch = 3;
+    //     return FALSE;
+    // }
+    // else if (HAZARD.EXMEM[rs] == 0)
+    // {
+    //     STALL.Decode = 2;
+    //     STALL.Fetch = 2;
+    //     return FALSE;
+    // }
+    // else if (HAZARD.MEMWB[rs] == 0)
+    // {
+    //     STALL.Decode = 1;
+    //     STALL.Fetch = 1;
+    //     return FALSE;
+    // }
+    // return TRUE;
+    if (HAZARD.IDEX[rt] == 0 || HAZARD.EXMEM[rt] == 0 || HAZARD.MEMWB[rt] == 0)
+    {
+        DEBUG_PRINT("Found data to forward at: [%d] with value %d\n", rt, FORWARD.DATA[rt]);
+
+        if (rt == 32)
+        {
+            IDEX_REG.LO = FORWARD.DATA[32];
+        }
+        else if (rt == 33)
+        {
+            IDEX_REG.HI = FORWARD.DATA[33];
+        }
+        else
+        {
+            IDEX_REG.RTDATA = FORWARD.DATA[rt];
+        }
+
+        // return FALSE;
+    }
+    return TRUE;
+}
+
+int forward_double(u32 rs, u32 rt)
+{
+    // if (HAZARD.IDEX[rs] == 0 || HAZARD.IDEX[rt] == 0) {
+    //     STALL.Decode = 3;
+    //     STALL.Fetch = 3;
+    //     return FALSE;
+    // }
+    // else if (HAZARD.EXMEM[rs] == 0 || HAZARD.EXMEM[rt] == 0)
+    // {
+    //     STALL.Decode = 2;
+    //     STALL.Fetch = 2;
+    //     return FALSE;
+    // }
+    // else if (HAZARD.MEMWB[rs] == 0 || HAZARD.MEMWB[rt] == 0)
+    // {
+    //     STALL.Decode = 1;
+    //     STALL.Fetch = 1;
+    //     return FALSE;
+    // }
+    // return TRUE;
+    if ((HAZARD.IDEX[rs] == 0 || HAZARD.IDEX[rt] == 0) || (HAZARD.EXMEM[rs] == 0 || HAZARD.EXMEM[rt] == 0) || (HAZARD.MEMWB[rs] == 0 || HAZARD.MEMWB[rt] == 0))
+    {
+        DEBUG_PRINT("Found data to forward at: [%d] %d or [%d] %d\n", rs,FORWARD.DATA[rs], rt, FORWARD.DATA[rt]);
+
+        // IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IFID_REG.IR)];
+        // IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IFID_REG.IR)];
+        IDEX_REG.RSDATA = FORWARD.DATA[rs];
+        IDEX_REG.RTDATA = FORWARD.DATA[rt];
+        // return FALSE;
+    }
+    return TRUE;
+}
+
+
+void forward(u32 IR)
+{
+    if (STALL.Decode > 0) { return; }
+
+    u32 rs = rs(IR);
+    u32 rt = rt(IR);
+
+    switch(op(IR))
+    {
+        case SB:
+        case SH:
+        case SW:
+            forward_double(rs, rt);
+            break;
+        case LW:
+        case LB:
+        case LH:
+        case LBU:
+        case LHU:
+            forward_single_rs(rs);
+            break;
+        case XORI:
+        case ANDI:
+        case SLTIU:
+        case SLTI:
+        case LUI:
+        case ORI:
+        case ADDI:
+        case ADDIU:
+            forward_single_rs(rs);
+            break;
+        case BLEZ:
+        case BGTZ:
+            if (forward_single_rs(rs))
+            {
+                STALL.Fetch = 4;
+            }
+            break;
+        case BNE:
+        case BEQ:
+            if (forward_double(rs, rt))
+            {
+                STALL.Fetch = 4;
+            }
+            break;
+        case JAL:
+        case J:
+            STALL.Fetch = 4;
+            break;
+        case SPECIAL: // R-Type
+            switch(funct(IR)) // This op code needs RegWrite
+            {
+                case SLL:
+                case SRL:
+                case SRA:
+                    forward_single_rt(rt);
+                    break;
+                case SLLV:
+                case SRLV:
+                case SRAV:
+                case ADD:
+                case SUB:
+                case SUBU:
+                case AND:
+                case OR:
+                case XOR:
+                case NOR:
+                case SLT:
+                case SLTU:
+                case ADDU:
+                    forward_double(rs, rt);
+                    break;
+                case MULT:
+                case MULTU:
+                case DIV:
+                case DIVU:
+                    forward_double(rs, rt);
+                    break;
+                case MFHI:
+                    // index 33 is HI
+                    forward_single_rs(33);
+                    break;
+                case MFLO:
+                    // index 32 is LO
+                    forward_single_rs(32);
+                    break;
+                case MTLO:
+                case MTHI:
+                    // Uses rs to store to HI/LO
+                    forward_single_rs(rs);
+                    break;
+                case JR:
+                    STALL.Fetch = 4;
+                    break;
+                case SYSCALL:
+                    break;
+            }
+            break;
+        case REGIMM:
+            switch (rt(IR))
+            {
+                case BLTZAL:
+                case BGEZAL:
+                case BLTZ:
+                case BGEZ:
+                    if (forward_single_rs(rs))
+                    {
+                        STALL.Fetch = 4;
+                    }
+                    break;
+            }
+    }
+}
+
+
 //////////////////////////
 //                      //
 //    MAIN FUNCTIONS    //
@@ -757,6 +1010,7 @@ void memory()
                 break;
         }
 
+        FORWARD.DATA[IDEX_REG.RD] = EXMEM_REG.ALURESULT;
     }
 
     // Pipe to MEMWB
@@ -809,6 +1063,7 @@ void execute()
                 EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
                 // Built in GATE
                 EXMEM_REG.BranchGate = (ALUDATA1 != ALUDATA2) && (IDEX_REG.Branch == HIGH) ? HIGH : LOW;
+                DEBUG_PRINT("BNE %d != %d\n", ALUDATA1, ALUDATA2);
                 break;
             case BEQ:
                 EXMEM_REG.JUMPADDRESS = (IDEX_REG.PCPLUS4 - 4) + (IDEX_REG.EXTENDEDIMM << 2);
@@ -831,6 +1086,9 @@ void execute()
                     int64_t multiplied = (i32) rs * (i32) rt;
                     EXMEM_REG.ALURESULT = (multiplied >> 32) & 0xffffffff;
                     EXMEM_REG.ALURESULT2 = multiplied & 0xffffffff;
+
+                    FORWARD.DATA[33] = EXMEM_REG.ALURESULT;
+                    FORWARD.DATA[32] = EXMEM_REG.ALURESULT2;
                     }
                     break;
                 case MULTU:
@@ -838,6 +1096,12 @@ void execute()
                     uint64_t multiplied = (uint64_t) rs * (uint64_t) rt;
                     EXMEM_REG.ALURESULT = (multiplied >> 32) & 0xffffffff;
                     EXMEM_REG.ALURESULT2 = multiplied & 0xffffffff;
+
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT, 33);
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT2, 32);
+
+                    FORWARD.DATA[33] = EXMEM_REG.ALURESULT;
+                    FORWARD.DATA[32] = EXMEM_REG.ALURESULT2;
                     }
                     break;
                 case DIV:
@@ -845,13 +1109,24 @@ void execute()
                     {
                     EXMEM_REG.ALURESULT = (i32) rs % (i32) rt;
                     EXMEM_REG.ALURESULT2 = (i32) rs / (i32) rt;
+
+                    FORWARD.DATA[33] = EXMEM_REG.ALURESULT;
+                    FORWARD.DATA[32] = EXMEM_REG.ALURESULT2;
                     }
                     break;
                 case DIVU:
                     if (rt != 0)
                     {
+                    DEBUG_PRINT("DIVU between %d & %d\n", rs, rt);
+
                     EXMEM_REG.ALURESULT = rs % rt;
                     EXMEM_REG.ALURESULT2 = rs / rt;
+
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT, 33);
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT2, 32);
+
+                    FORWARD.DATA[33] = EXMEM_REG.ALURESULT;
+                    FORWARD.DATA[32] = EXMEM_REG.ALURESULT2;
                     }
                     break;
                 case SLL:
@@ -859,6 +1134,8 @@ void execute()
                     break;
                 case SRL:
                     EXMEM_REG.ALURESULT = get_bits_between(rt >> IDEX_REG.SA, 0, 32 - IDEX_REG.SA);
+
+                    DEBUG_PRINT("SRL RESULT: %d >> %d -> %d\n", rt, IDEX_REG.SA, EXMEM_REG.ALURESULT);
                     break;
                 case SRA:
                     EXMEM_REG.ALURESULT = rt >> IDEX_REG.SA;
@@ -877,6 +1154,7 @@ void execute()
                     break;
                 case SUB:
                     EXMEM_REG.ALURESULT = (i32) rs - (i32) rt;
+                    DEBUG_PRINT("SUB %d - %d = %d\n", (i32) rs , (i32) rt, (i32) rs - (i32) rt);
                     break;
                 case SUBU:
                     EXMEM_REG.ALURESULT = rs - rt;
@@ -904,12 +1182,20 @@ void execute()
                     break;
                 case MFHI:
                     EXMEM_REG.ALURESULT = IDEX_REG.HI;
+                    DEBUG_PRINT("GOT HI : %d\n", IDEX_REG.HI);
                     break;
                 case MTLO:
                     EXMEM_REG.ALURESULT2 = IDEX_REG.RSDATA;
+
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT2, 32);
+                    FORWARD.DATA[32] = EXMEM_REG.ALURESULT2;
                     break;
                 case MTHI:
                     EXMEM_REG.ALURESULT = IDEX_REG.RSDATA;
+
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT, 33);
+                    FORWARD.DATA[33] = EXMEM_REG.ALURESULT;
+                    DEBUG_PRINT("MOVE TO HI : %d\n", IDEX_REG.RSDATA);
                     break;
                 case ADDU:
                     EXMEM_REG.ALURESULT = ALUDATA1 + ALUDATA2;
@@ -957,6 +1243,8 @@ void execute()
             case SPECIAL:
                 switch (IDEX_REG.FUNCT)
                 {
+                case JALR:
+                    EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
                 case JR:
                     EXMEM_REG.JUMPADDRESS = IDEX_REG.RSDATA;
                     break;
@@ -964,6 +1252,28 @@ void execute()
             }
         }
     }
+
+    switch(op)
+    {
+        case SPECIAL:
+            switch(IDEX_REG.FUNCT)
+            {
+                case DIVU:
+                    break;
+
+                default:
+                    DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT, IDEX_REG.RD);
+                    FORWARD.DATA[IDEX_REG.RD] = EXMEM_REG.ALURESULT;
+                    break;
+            }
+            break;
+
+        default:
+            DEBUG_PRINT("FORWARDING %d to [%d]\n", EXMEM_REG.ALURESULT, IDEX_REG.RD);
+            FORWARD.DATA[IDEX_REG.RD] = EXMEM_REG.ALURESULT;
+            break;
+    }
+
 
     // Pipe to EXMEM
     pipe_to_EXMEM();
@@ -981,7 +1291,16 @@ void decode()
     u32 op = op(IR);
 
     if (IR == 0) { return; }
-    check_dependency(IR);
+
+
+    IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IFID_REG.IR)];
+    IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IFID_REG.IR)];
+
+    IDEX_REG.HI = CURRENT_STATE.HI;
+    IDEX_REG.LO = CURRENT_STATE.LO;
+
+    forward(IR);
+    // check_dependency(IR);
     if (STALL.Decode > 0) { DEBUG_PRINT("STALLING in DECODE [%d]\n", STALL.Decode); STALL.Decode--; return; }
 
     DEBUG_PRINT("DECODE RAN\n");
@@ -1007,6 +1326,8 @@ void decode()
         case LBU:
         case LHU:
             IDEX_REG.MemRead = HIGH;
+            STALL.Decode = 1;
+            STALL.Fetch = 1;
         case XORI:
         case ANDI:
         case SLTIU:
@@ -1067,7 +1388,7 @@ void decode()
                     CONTROL_UNIT.RegWrite = HIGH;
                     IDEX_REG.RD = rd(IR);
                     IDEX_REG.FUNCT = funct(IR);
-                    DEBUG_PRINT("ADDU: %u\n", IDEX_REG.RD);
+                    DEBUG_PRINT("ADDU at REG: %u\n", IDEX_REG.RD);
 
                     HAZARD.MAIN[IDEX_REG.RD] = 0;
                     break;
@@ -1112,6 +1433,14 @@ void decode()
                 case JR:
                     CONTROL_UNIT.Jump = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
+                    break;
+                case JALR:
+                    CONTROL_UNIT.Jump = HIGH;
+                    CONTROL_UNIT.RegWrite = HIGH;
+                    IDEX_REG.FUNCT = funct(IR);
+                    IDEX_REG.RD = rd(IR) == 0 ? 31 : rd(IR);
+
+                    HAZARD.MAIN[IDEX_REG.RD] = 0;
                     break;
                 case SYSCALL:
                     DEBUG_PRINT("GOT SYSCALL\n");
@@ -1193,6 +1522,7 @@ void process_instruction()
         reset_IDEX_pipeline();
         reset_EXMEM_pipeline();
         reset_MEMWB_pipeline();
+        reset_forwarding_unit();
     }
 
     // fetch();
