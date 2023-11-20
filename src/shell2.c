@@ -153,7 +153,7 @@ void help() {
 void cycle() {
 
   process_instruction();
-  CURRENT_STATE = NEXT_STATE;
+  // CURRENT_STATE = NEXT_STATE;
   INSTRUCTION_COUNT++;
 
   if (INSTRUCTION_COUNT >= 5000)
@@ -757,13 +757,13 @@ void test()
   }
 
   printf("[ Correct ]: %d\n", count);
-  for (int i=0; i<52; i++)
-  {
-    if (results[i]==1)
-    {
-      printf("%s\n", instructions[i]);
-    }
-  }
+  // for (int i=0; i<52; i++)
+  // {
+  //   if (results[i]==1)
+  //   {
+  //     printf("%s\n", instructions[i]);
+  //   }
+  // }
   printf("[ Incorrect ]: \n");
   for (int i=0; i<52; i++)
   {

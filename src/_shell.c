@@ -87,18 +87,6 @@ uint32_t mem_read_32(uint32_t address)
     return 0;
 }
 
-void reset()
-{
-  CURRENT_STATE.HI = 0;
-  CURRENT_STATE.LO = 0;
-  for (int i = 0; i < 32; i++)
-  {
-    CURRENT_STATE.REGS[i] = 0;
-  }
-  INSTRUCTION_COUNT = 0;
-  RUN_BIT = TRUE;
-}
-
 /***************************************************************/
 /*                                                             */
 /* Procedure: mem_write_32                                     */
@@ -130,7 +118,7 @@ void mem_write_32(uint32_t address, uint32_t value)
 /* Purpose   : Print out a list of commands                    */
 /*                                                             */
 /***************************************************************/
-void help() {
+void help() {                                                    
   printf("----------------MIPS ISIM Help------------------------\n");
   printf("go                    - run program to completion     \n");
   printf("run n                 - execute program for n instrs  \n");
@@ -150,17 +138,11 @@ void help() {
 /* Purpose   : Execute a cycle                                 */
 /*                                                             */
 /***************************************************************/
-void cycle() {
+void cycle() {                                                
 
   process_instruction();
   CURRENT_STATE = NEXT_STATE;
   INSTRUCTION_COUNT++;
-
-  if (INSTRUCTION_COUNT >= 5000)
-  {
-    CURRENT_STATE.REGS[15] = 0xffffffff;
-    RUN_BIT = FALSE;
-  }
 }
 
 /***************************************************************/
@@ -170,7 +152,7 @@ void cycle() {
 /* Purpose   : Simulate MIPS for n cycles                      */
 /*                                                             */
 /***************************************************************/
-void run(int num_cycles) {
+void run(int num_cycles) {                                      
   int i;
 
   if (RUN_BIT == FALSE) {
@@ -195,7 +177,7 @@ void run(int num_cycles) {
 /* Purpose   : Simulate MIPS until HALTed                      */
 /*                                                             */
 /***************************************************************/
-void go() {
+void go() {                                                     
   if (RUN_BIT == FALSE) {
     printf("Can't simulate, Simulator is halted\n\n");
     return;
@@ -207,7 +189,7 @@ void go() {
   printf("Simulator halted\n\n");
 }
 
-/***************************************************************/
+/***************************************************************/ 
 /*                                                             */
 /* Procedure : mdump                                           */
 /*                                                             */
@@ -215,7 +197,7 @@ void go() {
 /*             output file.                                    */
 /*                                                             */
 /***************************************************************/
-void mdump(FILE * dumpsim_file, int start, int stop) {
+void mdump(FILE * dumpsim_file, int start, int stop) {          
   int address;
 
   printf("\nMemory content [0x%08x..0x%08x] :\n", start, stop);
@@ -236,12 +218,12 @@ void mdump(FILE * dumpsim_file, int start, int stop) {
 /*                                                             */
 /* Procedure : rdump                                           */
 /*                                                             */
-/* Purpose   : Dump current register and bus values to the     */
+/* Purpose   : Dump current register and bus values to the     */   
 /*             output file.                                    */
 /*                                                             */
 /***************************************************************/
-void rdump(FILE * dumpsim_file) {
-  int k;
+void rdump(FILE * dumpsim_file) {                               
+  int k; 
 
   printf("\nCurrent register/bus values :\n");
   printf("-------------------------------------\n");
@@ -271,10 +253,10 @@ void rdump(FILE * dumpsim_file) {
 /*                                                             */
 /* Procedure : get_command                                     */
 /*                                                             */
-/* Purpose   : Read a command from standard input.             */
+/* Purpose   : Read a command from standard input.             */  
 /*                                                             */
 /***************************************************************/
-void get_command(FILE * dumpsim_file) {
+void get_command(FILE * dumpsim_file) {                         
   char buffer[20];
   int start, stop, cycles;
   int register_no, register_value;
@@ -327,15 +309,15 @@ void get_command(FILE * dumpsim_file) {
    CURRENT_STATE.REGS[register_no] = register_value;
    NEXT_STATE.REGS[register_no] = register_value;
    break;
-
+  
   case 'H':
   case 'h':
    if (scanf("%i", &hi_reg_value) != 1)
       break;
-   CURRENT_STATE.HI = hi_reg_value;
-   NEXT_STATE.HI = hi_reg_value;
+   CURRENT_STATE.HI = hi_reg_value; 
+   NEXT_STATE.HI = hi_reg_value; 
    break;
-
+  
   case 'L':
   case 'l':
    if (scanf("%i", &lo_reg_value) != 1)
@@ -357,10 +339,10 @@ void get_command(FILE * dumpsim_file) {
 /* Purpose   : Allocate and zero memoryy                       */
 /*                                                             */
 /***************************************************************/
-void init_memory() {
+void init_memory() {                                           
     int i;
     for (i = 0; i < MEM_NREGIONS; i++) {
-        MEM_REGIONS[i].mem = (uint8_t*) malloc(MEM_REGIONS[i].size);
+        MEM_REGIONS[i].mem = malloc(MEM_REGIONS[i].size);
         memset(MEM_REGIONS[i].mem, 0, MEM_REGIONS[i].size);
     }
 }
@@ -372,21 +354,9 @@ void init_memory() {
 /* Purpose   : Load program and service routines into mem.    */
 /*                                                            */
 /**************************************************************/
-#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)  \
-  ((byte) & 0x80 ? '1' : '0'), \
-  ((byte) & 0x40 ? '1' : '0'), \
-  ((byte) & 0x20 ? '1' : '0'), \
-  ((byte) & 0x10 ? '1' : '0'), \
-  ((byte) & 0x08 ? '1' : '0'), \
-  ((byte) & 0x04 ? '1' : '0'), \
-  ((byte) & 0x02 ? '1' : '0'), \
-  ((byte) & 0x01 ? '1' : '0')
-
-void load_program(char *program_filename) {
+void load_program(char *program_filename) {                   
   FILE * prog;
   int ii, word;
-  char* wordd;
 
   /* Open program file. */
   prog = fopen(program_filename, "r");
@@ -395,25 +365,12 @@ void load_program(char *program_filename) {
     exit(-1);
   }
 
-  printf("Opened: %s\n", program_filename);
-
   /* Read in the program. */
 
-
   ii = 0;
-  while (fscanf(prog, "%x\n",&word) != EOF) {
+  while (fscanf(prog, "%x\n", &word) != EOF) {
     mem_write_32(MEM_TEXT_START + ii, word);
     ii += 4;
-    // printf("got:"
-    //   BYTE_TO_BINARY_PATTERN " "
-    //   BYTE_TO_BINARY_PATTERN " "
-    //   BYTE_TO_BINARY_PATTERN " "
-    //   BYTE_TO_BINARY_PATTERN " : %x\n",
-    //   BYTE_TO_BINARY(word>>24),
-    //   BYTE_TO_BINARY(word>>16),
-    //   BYTE_TO_BINARY(word>>8),
-    //   BYTE_TO_BINARY(word),
-    //   word);
   }
 
   CURRENT_STATE.PC = MEM_TEXT_START;
@@ -425,12 +382,11 @@ void load_program(char *program_filename) {
 /*                                                          */
 /* Procedure : initialize                                   */
 /*                                                          */
-/* Purpose   : Load machine language program                */
+/* Purpose   : Load machine language program                */ 
 /*             and set up initial state of the machine.     */
 /*                                                          */
 /************************************************************/
-void initialize(char *program_filename, int num_prog_files)
-{
+void initialize(char *program_filename, int num_prog_files) { 
   int i;
 
   init_memory();
@@ -439,7 +395,7 @@ void initialize(char *program_filename, int num_prog_files)
     while(*program_filename++ != '\0');
   }
   NEXT_STATE = CURRENT_STATE;
-
+    
   RUN_BIT = TRUE;
 }
 
@@ -448,8 +404,7 @@ void initialize(char *program_filename, int num_prog_files)
 /* Procedure : main                                            */
 /*                                                             */
 /***************************************************************/
-void run_shell(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {                              
   FILE * dumpsim_file;
 
   /* Error Checking */
@@ -469,316 +424,6 @@ void run_shell(int argc, char *argv[])
   }
 
   while (1)
-  {
     get_command(dumpsim_file);
-  }
-
-}
-
-#ifdef TEST_MODE
-int test_file(char* name)
-{
-  char path[80];
-  sprintf(path, "../tests/test_%s.x", name);
-  initialize(path, 1);
-  go();
-  // printf("[%s]: %d\n", name, (CURRENT_STATE.REGS[15] == 0) ? 1 : 0);
-  return (int) CURRENT_STATE.REGS[15];
-}
-
-char* instructions[] = {
-  "j",      // 0
-  "jal",    // 1
-  "jr",     // 2
-  "addi",   // 3
-  "mthi",   // 4
-  "mtlo",   // 5
-  "beq",    // 6
-  "bne",    // 7
-  "ori",    // 8
-  "lui",    // 9
-
-  "blez",   // 10
-  "bgtz",   // 11
-  "addiu",  // 12
-  "slti",   // 13
-  "sltiu",  // 14
-  "andi",   // 15
-  "xori",   // 16
-  "lb",     // 17
-  "lh",     // 18
-  "lw",     // 19
-  "lbu",    // 20
-  "lhu",    // 21
-  "sb",     // 22
-  "sh",     // 23
-  "sw",     // 24
-  "bltz",   // 25
-  "bgez",   // 26
-  "bltzal", // 27
-  "bgezal", // 28
-  "sll",    // 29
-  "srl",    // 30
-  "sra",    // 31
-  "sllv",   // 32
-  "srlv",   // 33
-  "srav",   // 34
-  "jalr",   // 35
-  "add",    // 36
-  "addu",   // 37
-  "sub",    // 38
-  "subu",   // 39
-  "and",    // 40
-  "or",     // 41
-  "xor",    // 42
-  "nor",    // 43
-  "slt",    // 44
-  "sltu",   // 45
-  "mult",   // 46
-  "mfhi",   // 47
-  "mflo",   // 48
-  "multu",  // 49
-  "div",    // 50
-  "divu"    // 51
-};
-
-int results[52] = {0};
-
-int test_j()
-{
-  test_file("j");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-  uint32_t r9 = CURRENT_STATE.REGS[9]; // $t1
-
-  if (r8==0 && r9==0) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_jal()
-{
-  test_file("jal");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-  uint32_t r9 = CURRENT_STATE.REGS[9]; // $t1
-  uint32_t ra = CURRENT_STATE.REGS[31]; // $t1
-
-  if (r8==0 && r9==0 && ra==0x00400004) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_beq()
-{
-  test_file("beq");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-  uint32_t r9 = CURRENT_STATE.REGS[9]; // $t1
-
-  if (r8==5 && r9==5) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_bne()
-{
-  test_file("bne");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-  uint32_t r9 = CURRENT_STATE.REGS[9]; // $t1
-
-  if (r8==5 && r9==6) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_ori()
-{
-  test_file("ori");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-  uint32_t r9 = CURRENT_STATE.REGS[9]; // $t1
-
-  if (r8==0xbeef && r9==0xabcd) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_lw()
-{
-  test_file("lw");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-
-  if (r8==0)
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_jr()
-{
-  test_file("jr");
-  uint32_t r8 = CURRENT_STATE.REGS[8]; // $t0
-  uint32_t r9 = CURRENT_STATE.REGS[9]; // $t1
-
-  if (r8==255 && r9==0) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_mthi()
-{
-  test_file("mthi");
-
-  if (CURRENT_STATE.HI == 0xbef) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_mtlo()
-{
-  test_file("mtlo");
-
-  if (CURRENT_STATE.LO == 0xbef) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_lui()
-{
-  test_file("lui");
-
-  if (CURRENT_STATE.REGS[8] == 0xffff0000) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-int test_addi()
-{
-  test_file("addi");
-
-  if (CURRENT_STATE.REGS[2] == 0xa) // Succeeded, jumped over.
-  {
-    return 0;
-  }
-  else
-  {
-    return -1;
-  }
-}
-
-void test()
-{
-  reset();
-  int count = 0;
-  for (int i=0; i<52; i++)
-  {
-    int res = 0;
-    // overload some tests (sorry), these ones kinda need to work
-    switch(i)
-    {
-      break; case 0: res = test_j();
-      break; case 1: res = test_jal();
-      break; case 2: res = test_jr();
-      break; case 3: res = test_addi();
-      break; case 4: res = test_mthi();
-      break; case 5: res = test_mtlo();
-      break; case 6: res = test_beq();
-      break; case 7: res = test_bne();
-      break; case 8: res = test_ori();
-      break; case 9: res = test_lui();
-      break; default: res = test_file(instructions[i]);
-    }
-    int v = (res == 0) ? 1 : 0;
-    count += v;
-    if (v==1) printf("[+]: %s\n", instructions[i]);
-    else printf("[-]: %s\n", instructions[i]);
-    results[i] = v;
-    reset();
-  }
-
-  printf("=============================================\n");
-  printf("|                TEST RESULT                |\n");
-  printf("=============================================\n\n");
-  fflush(stdout);
-
-  printf("[ NEED TO FIX ]: \n");
-  for (int i=0; i<10; i++)
-  {
-    if (results[i]==0)
-    {
-      printf("%s\n", instructions[i]);
-    }
-  }
-
-  printf("[ Correct ]: %d\n", count);
-  for (int i=0; i<52; i++)
-  {
-    if (results[i]==1)
-    {
-      printf("%s\n", instructions[i]);
-    }
-  }
-  printf("[ Incorrect ]: \n");
-  for (int i=0; i<52; i++)
-  {
-    if (results[i]==0)
-    {
-      printf("%s\n", instructions[i]);
-    }
-  }
-}
-#endif
-
-int main(int argc, char *argv[]) {
-#ifndef TEST_MODE
-  run_shell(argc, argv);
-#else
-  test();
-#endif
+    
 }
