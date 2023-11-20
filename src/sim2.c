@@ -682,24 +682,6 @@ void check_dependency(u32 IR)
 
 int forward_single_rs(u32 rs)
 {
-    // if (HAZARD.IDEX[rs] == 0) {
-    //     STALL.Decode = 3;
-    //     STALL.Fetch = 3;
-    //     return FALSE;
-    // }
-    // else if (HAZARD.EXMEM[rs] == 0)
-    // {
-    //     STALL.Decode = 2;
-    //     STALL.Fetch = 2;
-    //     return FALSE;
-    // }
-    // else if (HAZARD.MEMWB[rs] == 0)
-    // {
-    //     STALL.Decode = 1;
-    //     STALL.Fetch = 1;
-    //     return FALSE;
-    // }
-    // return TRUE;
     if (HAZARD.IDEX[rs] == 0 || HAZARD.EXMEM[rs] == 0 || HAZARD.MEMWB[rs] == 0)
     {
         DEBUG_PRINT("Found data to forward at: [%d] with value %d\n", rs, FORWARD.DATA[rs]);
@@ -716,32 +698,12 @@ int forward_single_rs(u32 rs)
         {
             IDEX_REG.RSDATA = FORWARD.DATA[rs];
         }
-
-        // return FALSE;
     }
     return TRUE;
 }
 
 int forward_single_rt(u32 rt)
 {
-    // if (HAZARD.IDEX[rs] == 0) {
-    //     STALL.Decode = 3;
-    //     STALL.Fetch = 3;
-    //     return FALSE;
-    // }
-    // else if (HAZARD.EXMEM[rs] == 0)
-    // {
-    //     STALL.Decode = 2;
-    //     STALL.Fetch = 2;
-    //     return FALSE;
-    // }
-    // else if (HAZARD.MEMWB[rs] == 0)
-    // {
-    //     STALL.Decode = 1;
-    //     STALL.Fetch = 1;
-    //     return FALSE;
-    // }
-    // return TRUE;
     if (HAZARD.IDEX[rt] == 0 || HAZARD.EXMEM[rt] == 0 || HAZARD.MEMWB[rt] == 0)
     {
         DEBUG_PRINT("Found data to forward at: [%d] with value %d\n", rt, FORWARD.DATA[rt]);
@@ -766,33 +728,12 @@ int forward_single_rt(u32 rt)
 
 int forward_double(u32 rs, u32 rt)
 {
-    // if (HAZARD.IDEX[rs] == 0 || HAZARD.IDEX[rt] == 0) {
-    //     STALL.Decode = 3;
-    //     STALL.Fetch = 3;
-    //     return FALSE;
-    // }
-    // else if (HAZARD.EXMEM[rs] == 0 || HAZARD.EXMEM[rt] == 0)
-    // {
-    //     STALL.Decode = 2;
-    //     STALL.Fetch = 2;
-    //     return FALSE;
-    // }
-    // else if (HAZARD.MEMWB[rs] == 0 || HAZARD.MEMWB[rt] == 0)
-    // {
-    //     STALL.Decode = 1;
-    //     STALL.Fetch = 1;
-    //     return FALSE;
-    // }
-    // return TRUE;
     if ((HAZARD.IDEX[rs] == 0 || HAZARD.IDEX[rt] == 0) || (HAZARD.EXMEM[rs] == 0 || HAZARD.EXMEM[rt] == 0) || (HAZARD.MEMWB[rs] == 0 || HAZARD.MEMWB[rt] == 0))
     {
         DEBUG_PRINT("Found data to forward at: [%d] %d or [%d] %d\n", rs,FORWARD.DATA[rs], rt, FORWARD.DATA[rt]);
 
-        // IDEX_REG.RSDATA = CURRENT_STATE.REGS[rs(IFID_REG.IR)];
-        // IDEX_REG.RTDATA = CURRENT_STATE.REGS[rt(IFID_REG.IR)];
         IDEX_REG.RSDATA = FORWARD.DATA[rs];
         IDEX_REG.RTDATA = FORWARD.DATA[rt];
-        // return FALSE;
     }
     return TRUE;
 }
@@ -831,21 +772,14 @@ void forward(u32 IR)
             break;
         case BLEZ:
         case BGTZ:
-            if (forward_single_rs(rs))
-            {
-                // STALL.Fetch = 4;
-            }
+            forward_single_rs(rs);
             break;
         case BNE:
         case BEQ:
-            if (forward_double(rs, rt))
-            {
-                // STALL.Fetch = 4;
-            }
+            forward_double(rs, rt);
             break;
         case JAL:
         case J:
-            // STALL.Fetch = 4;
             break;
         case SPECIAL: // R-Type
             switch(funct(IR)) // This op code needs RegWrite
@@ -890,7 +824,6 @@ void forward(u32 IR)
                     forward_single_rs(rs);
                     break;
                 case JR:
-                    // STALL.Fetch = 4;
                     break;
                 case SYSCALL:
                     break;
@@ -903,10 +836,7 @@ void forward(u32 IR)
                 case BGEZAL:
                 case BLTZ:
                 case BGEZ:
-                    if (forward_single_rs(rs))
-                    {
-                        // STALL.Fetch = 4;
-                    }
+                    forward_single_rs(rs);
                     break;
             }
     }
@@ -1275,10 +1205,6 @@ void execute()
 
         // RESET CONTROL UNIT
         reset_control_unit();
-    }
-    else
-    {
-        // CURRENT_STATE.PC = CURRENT_STATE.PC + 4;
     }
 
     switch(op)
