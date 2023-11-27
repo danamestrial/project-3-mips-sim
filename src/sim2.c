@@ -1173,8 +1173,8 @@ void execute()
             case SPECIAL:
                 switch (IDEX_REG.FUNCT)
                 {
-                case JALR:
-                    EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4;
+                // case JALR:
+                //     EXMEM_REG.ALURESULT = IDEX_REG.PCPLUS4 + 4;
                 case JR:
                     EXMEM_REG.JUMPADDRESS = IDEX_REG.RSDATA;
                     break;
@@ -1388,14 +1388,14 @@ void decode()
                     CONTROL_UNIT.Jump = HIGH;
                     IDEX_REG.FUNCT = funct(IR);
                     break;
-                case JALR:
-                    CONTROL_UNIT.Jump = HIGH;
-                    CONTROL_UNIT.RegWrite = HIGH;
-                    IDEX_REG.FUNCT = funct(IR);
-                    IDEX_REG.RD = rd(IR) == 0 ? 31 : rd(IR);
+                // case JALR:
+                //     CONTROL_UNIT.Jump = HIGH;
+                //     CONTROL_UNIT.RegWrite = HIGH;
+                //     IDEX_REG.FUNCT = funct(IR);
+                //     IDEX_REG.RD = rd(IR) == 0 ? 31 : rd(IR);
 
-                    HAZARD.MAIN[IDEX_REG.RD] = 0;
-                    break;
+                //     HAZARD.MAIN[IDEX_REG.RD] = 0;
+                //     break;
                 case SYSCALL:
                     DEBUG_PRINT("GOT SYSCALL\n");
                     IDEX_REG.Syscall = HIGH;
